@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+!pyiec61850der/pylibiec61850/source/*
+!*.pyd
+
+# ignore all logs
+*.log
+pyiec61850der/logs/*
+
+# ignore optimization, it is still under development
+pyiec61850der/optimization/*
+!*.py
+
+# ignore some folders with dump files
+pyiec61850der/model/outputs/*
+!pyiec61850der/model/outputs/README.md
+pyiec61850der/data/archive/*
+!pyiec61850der/data/statistics/README.md
+pyiec61850der/interface/*.xlsx
+!pyiec61850der/interface/interface_SunSpec.xlsx
+
+# ignore some folders that needs review before publication
+pyiec61850der/model/config_SP5_Enum.xml
+
+# ignore credential information
+pyiec61850der/secret/*
+!pyiec61850der/secret/influxdb_template.json
+!pyiec61850der/secret/influxdb.json
+!pyiec61850der/secret/README.md
+
+# ignore sub-modules that are still under development
+pyiec61850der/container/batch/*
+pyiec61850der/simulation/pandapower61850/*
+
+# ignore local python environment
+venv
+
+# ignore ssh config for git repo
+.ssh
+

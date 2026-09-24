@@ -1,0 +1,1478 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SCL xmlns="http://www.iec.ch/61850/2003/SCL" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="B" version="2007" xsi:schemaLocation="http://www.iec.ch/61850/2003/SCL SCL.xsd">
+	<Header id="0" version="3"></Header>
+	<Communication>
+		<SubNetwork name="processTHU">
+			<ConnectedAP apName="processLabSGFG" iedName="demoVirtualCLS">
+				<Address>
+					<P type="OSI-AP-Title">1,1,9999,1</P>
+					<P type="OSI-AE-Qualifier">12</P>
+					<P type="OSI-PSEL">00000001</P>
+					<P type="OSI-SSEL">0001</P>
+					<P type="OSI-TSEL">0001</P>
+					<P type="IP">192.168.168.168</P>
+					<P type="IP-SUBNET">255.255.255.0</P>
+					<P type="IP-GATEWAY">192.168.168.1</P>
+					<P type="MAC-Address">00-01-02-03-04-05</P>
+				</Address>
+			</ConnectedAP>
+		</SubNetwork>
+	</Communication>
+	<IED manufacturer="THU_SGFG" name="demoVirtualCLS" type="demoType">
+		<Services nameLength="64">
+			<ClientServices></ClientServices>
+		</Services>
+		<AccessPoint name="processLabSGFG" router="false">
+			<Server timeout="30">
+				<Authentication></Authentication>
+				<LDevice inst="CLS">
+					<LN0 desc="Default LLN0" inst="" lnType="LLN0_0" lnClass="LLN0">
+					</LN0>
+					<LN desc="Default LPHD template" inst="1" lnType="LPHD_0" lnClass="LPHD" prefix="Platform_"></LN>
+					<LN desc="Default LPHD template" inst="1" lnType="LPHD_0" lnClass="LPHD" prefix="Hardware_"></LN>
+				</LDevice>
+				<LDevice inst="PCC">
+					<LN0 desc="Default LLN0" inst="" lnType="LLN0_0" lnClass="LLN0">
+					</LN0>
+					<LN desc="Default DPCC template" inst="1" lnType="DPCC_0" lnClass="DPCC" prefix=""></LN>
+					<LN desc="Default MMXU template" inst="1" lnType="MMXU_0" lnClass="MMXU" prefix=""></LN>
+					<LN desc="Default MMTR template" inst="1" lnType="MMTR_0" lnClass="MMTR" prefix=""></LN>
+				</LDevice>
+				<LDevice inst="METEO">
+					<LN0 desc="Default LLN0" inst="" lnType="LLN0_0" lnClass="LLN0">
+					</LN0>
+					<LN desc="Default FSCC template for ASG control" inst="1" lnType="FSCC_MV0" lnClass="FSCC" prefix="PVGEN_"></LN>
+					<LN desc="Default FSCH template for ASG control" inst="1" lnType="FSCH_MV0" lnClass="FSCH" prefix="PVGEN_"></LN>
+					<LN desc="Default MMET template" inst="1" lnType="MMET_0" lnClass="MMET" prefix=""></LN>
+					<LN desc="Default LPHD template" inst="1" lnType="LPHD_0" lnClass="LPHD" prefix=""></LN>
+				</LDevice>
+				<LDevice inst="PV1">
+					<LN0 desc="Default LLN0" inst="" lnType="LLN0_0" lnClass="LLN0">
+						<DataSet name="PV1_SP_DINV1">
+							<FCDA doName="OutWSet" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="OutVarSet" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="InvCtlSrc" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="WRtg" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VARtg" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="WVArVLim" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="WVArVLimSet" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="SwHz" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="ClMthTyp" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="IsoTyp" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="ACTyp" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="InAMax" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="InVMax" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VArRtg" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VRtg" fc="SP" ldInst="PV1" lnClass="DINV" lnInst="1" prefix=""></FCDA>
+						</DataSet>
+						<DataSet name="PV1_MX_DGEN1">
+							<FCDA doName="CnstWMax" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="GnEnTot" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="GnEnPer" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="RenWPct" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="RenVArPct" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VArTot" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvarTot" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="IvarTot" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VArAvl" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvarAvl" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="IvarAvl" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="SelfSvcWh" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VAPct" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvlUpW" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvlDnW" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="WSpt" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VArSpt" fc="MX" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+						</DataSet>
+						<DataSet name="PV1_SP_DGEN1">
+							<FCDA doName="OutWSet" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="OutVarSet" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="WMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VAMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VArMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvarMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="IvarMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VMinRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="WRpuMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="WRpdMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="CtbWMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="CtbVArMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="WMax" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="WRmp" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VArMax" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvarMax" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="IvarMax" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VMax" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VMin" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AMax" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VAMax" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvaMax" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="IvaMax" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VArSptRef" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="EcpConnTyp" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="PhsConnTyp" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="DERTyp" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="TmpMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="SelfWRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="SelfVRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="SelfPFRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="RvSeq" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="SelfVRngRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="EfcRtgPct" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="HzNomRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="HzMinRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="HzMaxRtg" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="DERId" fc="SP" ldInst="PV1" lnClass="DGEN" lnInst="1" prefix=""></FCDA>
+						</DataSet>
+						<DataSet name="PV1_MX_MMXU1">
+							<FCDA doName="TotW" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="TotVAr" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="TotVA" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="TotPF" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="Hz" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="PPV" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="PNV" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="PhV" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="A" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="W" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VAr" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="VA" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="PF" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="Z" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvAPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvPPVPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvPhVPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvWPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvVAPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvVArPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvPFPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="AvZPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MaxAPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MaxPPVPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MaxPhVPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MaxWPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MaxVAPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MaxVArPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MaxPFPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MaxZPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MinAPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MinPPVPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MinPhVPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MinWPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MinVAPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MinVArPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MinPFPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="MinZPhs" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+							<FCDA doName="HzRte" fc="MX" ldInst="PV1" lnClass="MMXU" lnInst="1" prefix=""></FCDA>
+						</DataSet>
+						<ReportControl confRev="1" datSet="PV1_SP_DINV1" intgPd="1440000" name="PV1_SP_DINV1" rptID="RCB_PV1_SP_DINV1">
+							<TrgOps dchg="false" dupd="false" gi="false" period="true" qchg="false"></TrgOps>
+							<OptFields configRef="true" dataRef="true" dataSet="true" entryID="true" reasonCode="true" seqNum="true" timeStamp="true"></OptFields>
+							<RptEnabled>3</RptEnabled>
+						</ReportControl>
+						<ReportControl confRev="1" datSet="PV1_MX_DGEN1" intgPd="60000" name="PV1_MX_DGEN1" rptID="RCB_PV1_MX_DGEN1">
+							<TrgOps dchg="false" dupd="false" gi="false" period="true" qchg="false"></TrgOps>
+							<OptFields configRef="true" dataRef="true" dataSet="true" entryID="true" reasonCode="true" seqNum="true" timeStamp="true"></OptFields>
+							<RptEnabled>3</RptEnabled>
+						</ReportControl>
+						<ReportControl confRev="1" datSet="PV1_SP_DGEN1" intgPd="1440000" name="PV1_SP_DGEN1" rptID="RCB_PV1_SP_DGEN1">
+							<TrgOps dchg="true" dupd="false" gi="false" period="true" qchg="false"></TrgOps>
+							<OptFields configRef="true" dataRef="true" dataSet="true" entryID="true" reasonCode="true" seqNum="true" timeStamp="true"></OptFields>
+							<RptEnabled>3</RptEnabled>
+						</ReportControl>
+						<ReportControl confRev="1" datSet="PV1_MX_MMXU1" intgPd="60000" name="PV1_MX_MMXU1" rptID="RCB_PV1_MX_MMXU1">
+							<TrgOps dchg="true" dupd="false" gi="false" period="true" qchg="false"></TrgOps>
+							<OptFields configRef="true" dataRef="true" dataSet="true" entryID="true" reasonCode="true" seqNum="true" timeStamp="true"></OptFields>
+							<RptEnabled>3</RptEnabled>
+						</ReportControl>
+					</LN0>
+					<LN desc="Default MMTR template" inst="1" lnType="MMTR_0" lnClass="MMTR" prefix=""></LN>
+					<LN desc="Default DCST template" inst="1" lnType="DCST_0" lnClass="DCST" prefix=""></LN>
+					<LN desc="Default DINV template" inst="1" lnType="DINV_0" lnClass="DINV" prefix=""></LN>
+					<LN desc="Default DECP template" inst="1" lnType="DECP_0" lnClass="DECP" prefix=""></LN>
+					<LN desc="Default DGEN template" inst="1" lnType="DGEN_0" lnClass="DGEN" prefix=""></LN>
+					<LN desc="Default MMXU template" inst="1" lnType="MMXU_0" lnClass="MMXU" prefix=""></LN>
+					<LN desc="Default FSCH template for ASG control" inst="1" lnType="FSCH_MV0" lnClass="FSCH" prefix="PVCTL_"></LN>
+					<LN desc="Default DCCT template" inst="1" lnType="DCCT_0" lnClass="DCCT" prefix=""></LN>
+					<LN desc="Default FSCC template for ASG control" inst="1" lnType="FSCC_MV0" lnClass="FSCC" prefix="PVCTL_"></LN>
+				</LDevice>
+				<LDevice inst="LOAD1">
+					<LN0 desc="Default LLN0" inst="" lnType="LLN0_0" lnClass="LLN0">
+					</LN0>
+					<LN desc="Default MMTR template" inst="1" lnType="MMTR_0" lnClass="MMTR" prefix=""></LN>
+					<LN desc="Default DLOD template" inst="1" lnType="DLOD_0" lnClass="DLOD" prefix=""></LN>
+					<LN desc="Default DCST template" inst="1" lnType="DCST_0" lnClass="DCST" prefix=""></LN>
+					<LN desc="Default DECP template" inst="1" lnType="DECP_0" lnClass="DECP" prefix=""></LN>
+					<LN desc="Default MMXU template" inst="1" lnType="MMXU_0" lnClass="MMXU" prefix=""></LN>
+					<LN desc="Default DCCT template" inst="1" lnType="DCCT_0" lnClass="DCCT" prefix=""></LN>
+				</LDevice>
+				<LDevice inst="STO1">
+					<LN0 desc="Default LLN0" inst="" lnType="LLN0_0" lnClass="LLN0">
+					</LN0>
+					<LN desc="Default MMTR template" inst="1" lnType="MMTR_0" lnClass="MMTR" prefix=""></LN>
+					<LN desc="Default FSCH template for ASG control" inst="1" lnType="FSCH_MV0" lnClass="FSCH" prefix="STOCTL_"></LN>
+					<LN desc="Default DCST template" inst="1" lnType="DCST_0" lnClass="DCST" prefix=""></LN>
+					<LN desc="Default DECP template" inst="1" lnType="DECP_0" lnClass="DECP" prefix=""></LN>
+					<LN desc="Default MMXU template" inst="1" lnType="MMXU_0" lnClass="MMXU" prefix=""></LN>
+					<LN desc="Default FSCC template for ASG control" inst="1" lnType="FSCC_MV0" lnClass="FSCC" prefix="STOCTL_"></LN>
+					<LN desc="Default DSTO template" inst="1" lnType="DSTO_0" lnClass="DSTO" prefix=""></LN>
+					<LN desc="Default DCCT template" inst="1" lnType="DCCT_0" lnClass="DCCT" prefix=""></LN>
+				</LDevice>
+			</Server>
+		</AccessPoint>
+	</IED>
+	<DataTypeTemplates>
+		<LNodeType lnClass="DCCT" id="DCCT_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="CUG_0" name="Ccy"></DO>
+			<DO desc="" type="ASG_0" name="OpCost"></DO>
+			<DO desc="" type="ASG_0" name="OpWhCost"></DO>
+			<DO desc="" type="ASG_0" name="StrCost"></DO>
+			<DO desc="" type="ASG_0" name="StopCost"></DO>
+			<DO desc="" type="ASG_0" name="RampCost"></DO>
+			<DO desc="" type="CSG_0" name="HeatRteCost"></DO>
+			<DO desc="" type="CSG_0" name="CRteCost"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="DECP" id="DECP_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="ENS_PhaseKind" name="PhsConnTyp"></DO>
+			<DO desc="" type="ASG_0" name="VRef"></DO>
+			<DO desc="" type="ASG_0" name="VRefPct"></DO>
+			<DO desc="" type="ASG_0" name="WRtg"></DO>
+			<DO desc="" type="ASG_0" name="VArRtg"></DO>
+			<DO desc="" type="ASG_0" name="VARtg"></DO>
+			<DO desc="" type="ASG_0" name="VRtg"></DO>
+			<DO desc="" type="ASG_0" name="HzNom"></DO>
+			<DO desc="" type="ASG_0" name="VMax"></DO>
+			<DO desc="" type="ASG_0" name="VMin"></DO>
+			<DO desc="" type="VSG_0" name="ElcRefId"></DO>
+			<DO desc="" type="SPG_0" name="DERMsIncl"></DO>
+			<DO desc="" type="ORG_0" name="ElcMsRef"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="DGEN" id="DGEN_0">
+			<DO desc="" type="DPL_0" name="EEName"></DO>
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="SPS_0" name="LocKey"></DO>
+			<DO desc="" type="SPS_0" name="Loc"></DO>
+			<DO desc="" type="ENS_DERSynchronizationKind" name="GnSynSt"></DO>
+			<DO desc="" type="ENS_DERStateKind" name="DEROpSt"></DO>
+			<DO desc="" type="INS_0" name="OpTmh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="EEHealth"></DO>
+			<DO desc="" type="MV_0" name="CnstWMax"></DO>
+			<DO desc="" type="MV_0" name="GnEnTot"></DO>
+			<DO desc="" type="MV_0" name="GnEnPer"></DO>
+			<DO desc="" type="MV_0" name="RenWPct"></DO>
+			<DO desc="" type="MV_0" name="RenVArPct"></DO>
+			<DO desc="" type="MV_0" name="VArTot"></DO>
+			<DO desc="" type="MV_0" name="AvarTot"></DO>
+			<DO desc="" type="MV_0" name="IvarTot"></DO>
+			<DO desc="" type="MV_0" name="VArAvl"></DO>
+			<DO desc="" type="MV_0" name="AvarAvl"></DO>
+			<DO desc="" type="MV_0" name="IvarAvl"></DO>
+			<DO desc="" type="MV_0" name="SelfSvcWh"></DO>
+			<DO desc="" type="MV_0" name="VAPct"></DO>
+			<DO desc="" type="MV_0" name="AvlUpW"></DO>
+			<DO desc="" type="MV_0" name="AvlDnW"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+			<DO desc="" type="SPC_0" name="LocSta"></DO>
+			<DO desc="" type="INC_0" name="GnOnCnt"></DO>
+			<DO desc="" type="INC_0" name="TotStrCnt"></DO>
+			<DO desc="" type="INC_0" name="PerStrCnt"></DO>
+			<DO desc="" type="INC_0" name="OpTms"></DO>
+			<DO desc="" type="SPC_0" name="GnEnPerRs"></DO>
+			<DO desc="" type="ENC_DERStateTransitionKind" name="DEROpStCtl"></DO>
+			<DO desc="" type="APC_0" name="WSpt"></DO>
+			<DO desc="" type="APC_0" name="VArSpt"></DO>
+			<DO desc="" type="ASG_0" name="OutWSet"></DO>
+			<DO desc="" type="ASG_0" name="OutVarSet"></DO>
+			<DO desc="" type="INC_0" name="OpCntRs"></DO>
+			<DO desc="" type="ORG_0" name="InclGn"></DO>
+			<DO desc="" type="ASG_0" name="WMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="VAMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="VArMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="AvarMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="IvarMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="AMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="VMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="VMinRtg"></DO>
+			<DO desc="" type="ASG_0" name="WRpuMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="WRpdMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="CtbWMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="CtbVArMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="WMax"></DO>
+			<DO desc="" type="ASG_0" name="WRmp"></DO>
+			<DO desc="" type="ASG_0" name="VArMax"></DO>
+			<DO desc="" type="ASG_0" name="AvarMax"></DO>
+			<DO desc="" type="ASG_0" name="IvarMax"></DO>
+			<DO desc="" type="ASG_0" name="VMax"></DO>
+			<DO desc="" type="ASG_0" name="VMin"></DO>
+			<DO desc="" type="ASG_0" name="AMax"></DO>
+			<DO desc="" type="ASG_0" name="VAMax"></DO>
+			<DO desc="" type="ASG_0" name="AvaMax"></DO>
+			<DO desc="" type="ASG_0" name="IvaMax"></DO>
+			<DO desc="" type="ENG_ReactivePowerRefParamKind" name="VArSptRef"></DO>
+			<DO desc="" type="ENG_ECPConnKind" name="EcpConnTyp"></DO>
+			<DO desc="" type="ENG_PhaseKind" name="PhsConnTyp"></DO>
+			<DO desc="" type="ENG_DERUnitKind" name="DERTyp"></DO>
+			<DO desc="" type="ASG_0" name="TmpMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="SelfWRtg"></DO>
+			<DO desc="" type="ASG_0" name="SelfVRtg"></DO>
+			<DO desc="" type="ASG_0" name="SelfPFRtg"></DO>
+			<DO desc="" type="SPG_0" name="RvSeq"></DO>
+			<DO desc="" type="ASG_0" name="SelfVRngRtg"></DO>
+			<DO desc="" type="ASG_0" name="EfcRtgPct"></DO>
+			<DO desc="" type="ASG_0" name="HzNomRtg"></DO>
+			<DO desc="" type="ASG_0" name="HzMinRtg"></DO>
+			<DO desc="" type="ASG_0" name="HzMaxRtg"></DO>
+			<DO desc="" type="VSG_0" name="DERId"></DO>
+		</LNodeType>
+		<LNodeType lnClass="DINV" id="DINV_0">
+			<DO desc="" type="DPL_0" name="EEName"></DO>
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="SPS_0" name="LocKey"></DO>
+			<DO desc="" type="SPS_0" name="Loc"></DO>
+			<DO desc="" type="SPS_0" name="InvACLosAlm"></DO>
+			<DO desc="" type="SPS_0" name="InvDCLosAlm"></DO>
+			<DO desc="" type="SPS_0" name="InvGriLosAl"></DO>
+			<DO desc="" type="ENS_HealthKind" name="EEHealth"></DO>
+			<DO desc="" type="INS_0" name="OpTmh"></DO>
+			<DO desc="" type="APC_0" name="WSpt"></DO>
+			<DO desc="" type="APC_0" name="VArSpt"></DO>
+			<DO desc="" type="ASG_0" name="OutWSet"></DO>
+			<DO desc="" type="ASG_0" name="OutVarSet"></DO>
+			<DO desc="" type="ENG_InverterControlSourceKind" name="InvCtlSrc"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+			<DO desc="" type="SPC_0" name="LocSta"></DO>
+			<DO desc="" type="ASG_0" name="WRtg"></DO>
+			<DO desc="" type="ASG_0" name="VARtg"></DO>
+			<DO desc="" type="CSG_0" name="WVArVLim"></DO>
+			<DO desc="" type="CSG_0" name="WVArVLimSet"></DO>
+			<DO desc="" type="ASG_0" name="SwHz"></DO>
+			<DO desc="" type="ENG_CoolingMethodKind" name="ClMthTyp"></DO>
+			<DO desc="" type="ENG_IsolationKind" name="IsoTyp"></DO>
+			<DO desc="" type="ENG_ACSystemKind" name="ACTyp"></DO>
+			<DO desc="" type="ASG_0" name="InAMax"></DO>
+			<DO desc="" type="ASG_0" name="InVMax"></DO>
+			<DO desc="" type="ASG_0" name="VArRtg"></DO>
+			<DO desc="" type="ASG_0" name="VRtg"></DO>
+		</LNodeType>
+		<LNodeType lnClass="DLOD" id="DLOD_0">
+			<DO desc="" type="DPL_0" name="EEName"></DO>
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="SPS_0" name="LocKey"></DO>
+			<DO desc="" type="SPS_0" name="Loc"></DO>
+			<DO desc="" type="ENS_DERStateKind" name="DEROpSt"></DO>
+			<DO desc="" type="ENS_HealthKind" name="EEHealth"></DO>
+			<DO desc="" type="INS_0" name="OpTmh"></DO>
+			<DO desc="" type="MV_0" name="VArTot"></DO>
+			<DO desc="" type="MV_0" name="AvarTot"></DO>
+			<DO desc="" type="MV_0" name="IvarTot"></DO>
+			<DO desc="" type="MV_0" name="VArAvl"></DO>
+			<DO desc="" type="MV_0" name="AvarAvl"></DO>
+			<DO desc="" type="MV_0" name="IvarAvl"></DO>
+			<DO desc="" type="MV_0" name="SelfSvcWh"></DO>
+			<DO desc="" type="MV_0" name="VAPct"></DO>
+			<DO desc="" type="MV_0" name="AvlUpW"></DO>
+			<DO desc="" type="MV_0" name="AvlDnW"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+			<DO desc="" type="SPC_0" name="LocSta"></DO>
+			<DO desc="" type="ENC_DERStateTransitionKind" name="DEROpStCtl"></DO>
+			<DO desc="" type="APC_0" name="WSpt"></DO>
+			<DO desc="" type="APC_0" name="VArSpt"></DO>
+			<DO desc="" type="ASG_0" name="OutWSet"></DO>
+			<DO desc="" type="ASG_0" name="OutVarSet"></DO>
+			<DO desc="" type="INC_0" name="OpCntRs"></DO>
+			<DO desc="" type="ORG_0" name="DERUnit"></DO>
+			<DO desc="" type="ASG_0" name="WMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="VMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="VMinRtg"></DO>
+			<DO desc="" type="ASG_0" name="AMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="VAMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="WRpuMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="WRpdMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="WMax"></DO>
+			<DO desc="" type="ASG_0" name="WRmp"></DO>
+			<DO desc="" type="ASG_0" name="VArMax"></DO>
+			<DO desc="" type="ASG_0" name="AvarMax"></DO>
+			<DO desc="" type="ASG_0" name="IvarMax"></DO>
+			<DO desc="" type="ASG_0" name="VMax"></DO>
+			<DO desc="" type="ASG_0" name="VMin"></DO>
+			<DO desc="" type="ASG_0" name="AMax"></DO>
+			<DO desc="" type="ASG_0" name="VAMax"></DO>
+			<DO desc="" type="ASG_0" name="AvaMax"></DO>
+			<DO desc="" type="ASG_0" name="IvaMax"></DO>
+			<DO desc="" type="ENG_ReactivePowerRefParamKind" name="VArSptRef"></DO>
+			<DO desc="" type="ORG_0" name="OutEcpRef"></DO>
+			<DO desc="" type="ENG_ECPConnKind" name="EcpConnTyp"></DO>
+			<DO desc="" type="ENG_PhaseKind" name="PhsConnTyp"></DO>
+			<DO desc="" type="ENG_DERUnitKind" name="DERTyp"></DO>
+			<DO desc="" type="ASG_0" name="TmpMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="FltRtgPct"></DO>
+			<DO desc="" type="ASG_0" name="FltAMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="SelfVRtg"></DO>
+			<DO desc="" type="ASG_0" name="FltDurMaxTms"></DO>
+			<DO desc="" type="ASG_0" name="SelfWRtg"></DO>
+			<DO desc="" type="ASG_0" name="SelfPFRtg"></DO>
+			<DO desc="" type="ASG_0" name="SelfVRngRtg"></DO>
+			<DO desc="" type="ASG_0" name="EfcRtgPct"></DO>
+			<DO desc="" type="ASG_0" name="HzNomRtg"></DO>
+			<DO desc="" type="ASG_0" name="HzMinRtg"></DO>
+			<DO desc="" type="ASG_0" name="HzMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="DERId"></DO>
+		</LNodeType>
+		<LNodeType lnClass="DPCC" id="DPCC_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+			<DO desc="" type="VSG_0" name="AreaEpsEcpId"></DO>
+			<DO desc="" type="ASG_0" name="AreaEpsWMax"></DO>
+			<DO desc="" type="ENS_PhaseKind" name="PhsConnTyp"></DO>
+			<DO desc="" type="ASG_0" name="VRef"></DO>
+			<DO desc="" type="ASG_0" name="VRefPct"></DO>
+			<DO desc="" type="ASG_0" name="WRtg"></DO>
+			<DO desc="" type="ASG_0" name="VArRtg"></DO>
+			<DO desc="" type="ASG_0" name="VARtg"></DO>
+			<DO desc="" type="ASG_0" name="VRtg"></DO>
+			<DO desc="" type="ASG_0" name="HzNom"></DO>
+			<DO desc="" type="ASG_0" name="VMax"></DO>
+			<DO desc="" type="ASG_0" name="VMin"></DO>
+			<DO desc="" type="VSG_0" name="ElcRefId"></DO>
+			<DO desc="" type="SPG_0" name="DERMsIncl"></DO>
+			<DO desc="" type="ORG_0" name="ElcMsRef"></DO>
+		</LNodeType>
+		<LNodeType lnClass="DPMC" id="DPMC_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="ORS_0" name="WTopFct"></DO>
+			<DO desc="" type="ORS_0" name="VArTopFct"></DO>
+			<DO desc="" type="SPS_0" name="LocKey"></DO>
+			<DO desc="" type="SPS_0" name="Loc"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+			<DO desc="" type="SPC_0" name="LocSta"></DO>
+			<DO desc="" type="MV_0" name="ReqTotW"></DO>
+			<DO desc="" type="MV_0" name="ReqTotWMin"></DO>
+			<DO desc="" type="MV_0" name="ReqTotWMax"></DO>
+			<DO desc="" type="APC_0" name="WSpt"></DO>
+			<DO desc="" type="ASG_0" name="OutWSet"></DO>
+			<DO desc="" type="APC_0" name="WMinSpt"></DO>
+			<DO desc="" type="APC_0" name="WMaxSpt"></DO>
+		</LNodeType>
+		<LNodeType lnClass="DCST" id="DCST_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="CUG_0" name="Ccy"></DO>
+			<DO desc="" type="CSG_0" name="HeatRteAct"></DO>
+			<DO desc="" type="CSG_0" name="HeatRteCost"></DO>
+			<DO desc="" type="ASG_0" name="StrCost"></DO>
+			<DO desc="" type="ASG_0" name="StopCost"></DO>
+			<DO desc="" type="ASG_0" name="RampCost"></DO>
+			<DO desc="" type="CSG_0" name="CRteCost"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="DSTO" id="DSTO_0">
+			<DO desc="" type="DPL_0" name="EEName"></DO>
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="SPS_0" name="LocKey"></DO>
+			<DO desc="" type="SPS_0" name="Loc"></DO>
+			<DO desc="" type="SPS_0" name="SocHiAlm"></DO>
+			<DO desc="" type="SPS_0" name="SocHiWrn"></DO>
+			<DO desc="" type="SPS_0" name="SocLoAlm"></DO>
+			<DO desc="" type="SPS_0" name="SocLoWrn"></DO>
+			<DO desc="" type="SPS_0" name="SohLoAlm"></DO>
+			<DO desc="" type="INS_0" name="ChaCycCnt"></DO>
+			<DO desc="" type="ENS_DERStateKind" name="DEROpSt"></DO>
+			<DO desc="" type="ENS_HealthKind" name="EEHealth"></DO>
+			<DO desc="" type="INS_0" name="OpTmh"></DO>
+			<DO desc="" type="MV_0" name="InWh"></DO>
+			<DO desc="" type="MV_0" name="OutWh"></DO>
+			<DO desc="" type="MV_0" name="SocWh"></DO>
+			<DO desc="" type="MV_0" name="UseSocPct"></DO>
+			<DO desc="" type="MV_0" name="SocEffWhPct"></DO>
+			<DO desc="" type="MV_0" name="ChaWhTot"></DO>
+			<DO desc="" type="MV_0" name="DschWhTot"></DO>
+			<DO desc="" type="MV_0" name="AvlDschW"></DO>
+			<DO desc="" type="MV_0" name="AvlChaW"></DO>
+			<DO desc="" type="MV_0" name="ChaVAPct"></DO>
+			<DO desc="" type="MV_0" name="AvlChaWTm"></DO>
+			<DO desc="" type="MV_0" name="AvlDschWTm"></DO>
+			<DO desc="" type="MV_0" name="ChaAvarTot"></DO>
+			<DO desc="" type="MV_0" name="DschAvarTot"></DO>
+			<DO desc="" type="MV_0" name="ChaIvarTot"></DO>
+			<DO desc="" type="MV_0" name="DschIvarTot"></DO>
+			<DO desc="" type="MV_0" name="ChaAvarAvl"></DO>
+			<DO desc="" type="MV_0" name="DschAvarAvl"></DO>
+			<DO desc="" type="MV_0" name="ChaIvarAvl"></DO>
+			<DO desc="" type="MV_0" name="DschIvarAvl"></DO>
+			<DO desc="" type="MV_0" name="EffWh"></DO>
+			<DO desc="" type="MV_0" name="EffWhPct"></DO>
+			<DO desc="" type="MV_0" name="SelfSvcWh"></DO>
+			<DO desc="" type="MV_0" name="VAPct"></DO>
+			<DO desc="" type="MV_0" name="AvlUpW"></DO>
+			<DO desc="" type="MV_0" name="AvlDnW"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+			<DO desc="" type="SPC_0" name="LocSta"></DO>
+			<DO desc="" type="ENC_DERStateTransitionKind" name="DEROpStCtl"></DO>
+			<DO desc="" type="APC_0" name="WSpt"></DO>
+			<DO desc="" type="APC_0" name="VArSpt"></DO>
+			<DO desc="" type="ASG_0" name="OutWSet"></DO>
+			<DO desc="" type="ASG_0" name="OutVarSet"></DO>
+			<DO desc="" type="INC_0" name="OpCntRs"></DO>
+			<DO desc="" type="ORG_0" name="EqSto"></DO>
+			<DO desc="" type="ORG_0" name="DERUnit"></DO>
+			<DO desc="" type="ASG_0" name="SocHiAlsPct"></DO>
+			<DO desc="" type="ASG_0" name="SocHiWrsPct"></DO>
+			<DO desc="" type="ASG_0" name="SocLoAlsPct"></DO>
+			<DO desc="" type="ASG_0" name="SocLoWrsPct"></DO>
+			<DO desc="" type="ASG_0" name="SohLoAlsPct"></DO>
+			<DO desc="" type="ASG_0" name="RntEffPct"></DO>
+			<DO desc="" type="ASG_0" name="ChaWMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="DschWMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="ChaWRmpRtg"></DO>
+			<DO desc="" type="ASG_0" name="DschWRmpRtg"></DO>
+			<DO desc="" type="ASG_0" name="ChaVAMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="DschVAMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="ChaAvarRtg"></DO>
+			<DO desc="" type="ASG_0" name="DschAvarRtg"></DO>
+			<DO desc="" type="ASG_0" name="ChaIvarRtg"></DO>
+			<DO desc="" type="ASG_0" name="DschIvarRtg"></DO>
+			<DO desc="" type="ASG_0" name="ChaVMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="DschVMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="ChaVMinRtg"></DO>
+			<DO desc="" type="ASG_0" name="DschVMinRtg"></DO>
+			<DO desc="" type="ASG_0" name="ChaAMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="DschAMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="WhRtg"></DO>
+			<DO desc="" type="ASG_0" name="WhMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="WhMinRtg"></DO>
+			<DO desc="" type="CSG_0" name="ChaEfcRtg"></DO>
+			<DO desc="" type="CSG_0" name="DschEfcRtg"></DO>
+			<DO desc="" type="ENG_ChargeSourceKind" name="ChaSrcRtg"></DO>
+			<DO desc="" type="ASG_0" name="ChaWMax"></DO>
+			<DO desc="" type="ASG_0" name="ChaWRmp"></DO>
+			<DO desc="" type="ASG_0" name="DschWRmp"></DO>
+			<DO desc="" type="ASG_0" name="DschWMax"></DO>
+			<DO desc="" type="ASG_0" name="ChaVArMax"></DO>
+			<DO desc="" type="ASG_0" name="DschVArMax"></DO>
+			<DO desc="" type="ASG_0" name="ChaVAMax"></DO>
+			<DO desc="" type="ASG_0" name="DschVAMax"></DO>
+			<DO desc="" type="ASG_0" name="ChaAvarMax"></DO>
+			<DO desc="" type="ASG_0" name="DschAvarMax"></DO>
+			<DO desc="" type="ASG_0" name="ChaIvarMax"></DO>
+			<DO desc="" type="ASG_0" name="DschIvarMax"></DO>
+			<DO desc="" type="ASG_0" name="ChaVMax"></DO>
+			<DO desc="" type="ASG_0" name="DschVMax"></DO>
+			<DO desc="" type="ASG_0" name="ChaVMin"></DO>
+			<DO desc="" type="ASG_0" name="DschVMin"></DO>
+			<DO desc="" type="ASG_0" name="ChaAMax"></DO>
+			<DO desc="" type="ASG_0" name="DschAMax"></DO>
+			<DO desc="" type="CSG_0" name="ChaEfc"></DO>
+			<DO desc="" type="CSG_0" name="DschEfc"></DO>
+			<DO desc="" type="ASG_0" name="UseWhMaxPct"></DO>
+			<DO desc="" type="ASG_0" name="UseWhMinPct"></DO>
+			<DO desc="" type="ASG_0" name="UseWh"></DO>
+			<DO desc="" type="ENG_ChargeSourceKind" name="ChaSrc"></DO>
+			<DO desc="" type="SPG_0" name="RenChaEna"></DO>
+			<DO desc="" type="ORG_0" name="OutEcpRef"></DO>
+			<DO desc="" type="ENG_ECPConnKind" name="EcpConnTyp"></DO>
+			<DO desc="" type="ENG_PhaseKind" name="PhsConnTyp"></DO>
+			<DO desc="" type="ENG_DERUnitKind" name="DERTyp"></DO>
+			<DO desc="" type="ASG_0" name="TmpMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="FltRtgPct"></DO>
+			<DO desc="" type="ASG_0" name="FltAMaxRtg"></DO>
+			<DO desc="" type="ASG_0" name="SelfVRtg"></DO>
+			<DO desc="" type="ING_0" name="FltDurMaxTms"></DO>
+			<DO desc="" type="ING_0" name="SelfWRtg"></DO>
+			<DO desc="" type="ING_0" name="SelfPFRtg"></DO>
+			<DO desc="" type="ING_0" name="SelfVRngRtg"></DO>
+			<DO desc="" type="ASG_0" name="EfcRtgPct"></DO>
+			<DO desc="" type="ASG_0" name="HzNomRtg"></DO>
+			<DO desc="" type="ASG_0" name="HzMinRtg"></DO>
+			<DO desc="" type="ASG_0" name="HzMaxRtg"></DO>
+			<DO desc="" type="VSG_0" name="DERId"></DO>
+		</LNodeType>
+		<LNodeType lnClass="DVER" id="DVER_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+			<DO desc="" type="ORG_0" name="InclElcRef"></DO>
+			<DO desc="" type="VSG_0" name="ElcRefId"></DO>
+			<DO desc="" type="ORG_0" name="ElcMsRef"></DO>
+		</LNodeType>
+		<LNodeType lnClass="FSCC" id="FSCC_INS0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Beh"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Health"></DO>
+			<DO desc="" type="ORS_0" name="ActSchdRef"></DO>
+			<DO desc="" type="INS_0" name="ValINS"></DO>
+			<DO desc="" type="ORG_0" name="CtlEnt"></DO>
+			<DO desc="" type="ORG_0" name="Schd"></DO>
+			<DO desc="" type="ORG_0" name="InRef"></DO>
+			<DO desc="" type="ENC_PseudoEnumKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="FSCC" id="FSCC_SPS0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Beh"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Health"></DO>
+			<DO desc="" type="ORS_0" name="ActSchdRef"></DO>
+			<DO desc="" type="SPS_0" name="ValSPS"></DO>
+			<DO desc="" type="ORG_0" name="CtlEnt"></DO>
+			<DO desc="" type="ORG_0" name="Schd"></DO>
+			<DO desc="" type="ORG_0" name="InRef"></DO>
+			<DO desc="" type="ENC_PseudoEnumKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="FSCC" id="FSCC_ENS0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Beh"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Health"></DO>
+			<DO desc="" type="ORS_0" name="ActSchdRef"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="ValENS"></DO>
+			<DO desc="" type="ORG_0" name="CtlEnt"></DO>
+			<DO desc="" type="ORG_0" name="Schd"></DO>
+			<DO desc="" type="ORG_0" name="InRef"></DO>
+			<DO desc="" type="ENC_PseudoEnumKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="FSCC" id="FSCC_MV0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Beh"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Health"></DO>
+			<DO desc="" type="ORS_0" name="ActSchdRef"></DO>
+			<DO desc="" type="MV_0" name="ValMV"></DO>
+			<DO desc="" type="ORG_0" name="CtlEnt"></DO>
+			<DO desc="" type="ORG_0" name="Schd"></DO>
+			<DO desc="" type="ORG_0" name="InRef"></DO>
+			<DO desc="" type="ENC_PseudoEnumKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="FSCH" id="FSCH_INS0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Beh"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Health"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="SchdSt"></DO>
+			<DO desc="" type="INS_0" name="SchdEntr"></DO>
+			<DO desc="" type="INS_0" name="ValINS"></DO>
+			<DO desc="" type="TCS_0" name="ActStrTm"></DO>
+			<DO desc="" type="TCS_0" name="NxtStrTm"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="SchdEnaErr"></DO>
+			<DO desc="" type="SPC_0" name="EnaReq"></DO>
+			<DO desc="" type="SPC_0" name="DsaReq"></DO>
+			<DO desc="" type="ING_0" name="SchdPrio"></DO>
+			<DO desc="" type="ING_0" name="NumEntr"></DO>
+			<DO desc="" type="ING_0" name="SchdIntv"></DO>
+			<DO desc="" type="ING_0" name="ValING"></DO>
+			<DO desc="" type="TSG_0" name="StrTm"></DO>
+			<DO desc="" type="SPG_0" name="EvtTrg"></DO>
+			<DO desc="" type="ORG_0" name="InSyn"></DO>
+			<DO desc="" type="SPG_0" name="SchdReuse"></DO>
+			<DO desc="" type="ORG_0" name="InRef"></DO>
+			<DO desc="" type="ENC_PseudoEnumKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="FSCH" id="FSCH_SPS0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Beh"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Health"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="SchdSt"></DO>
+			<DO desc="" type="INS_0" name="SchdEntr"></DO>
+			<DO desc="" type="SPS_0" name="ValSPS"></DO>
+			<DO desc="" type="TCS_0" name="ActStrTm"></DO>
+			<DO desc="" type="TCS_0" name="NxtStrTm"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="SchdEnaErr"></DO>
+			<DO desc="" type="SPC_0" name="EnaReq"></DO>
+			<DO desc="" type="SPC_0" name="DsaReq"></DO>
+			<DO desc="" type="ING_0" name="SchdPrio"></DO>
+			<DO desc="" type="ING_0" name="NumEntr"></DO>
+			<DO desc="" type="ING_0" name="SchdIntv"></DO>
+			<DO desc="" type="SPG_0" name="ValSPG"></DO>
+			<DO desc="" type="TSG_0" name="StrTm"></DO>
+			<DO desc="" type="SPG_0" name="EvtTrg"></DO>
+			<DO desc="" type="ORG_0" name="InSyn"></DO>
+			<DO desc="" type="SPG_0" name="SchdReuse"></DO>
+			<DO desc="" type="ORG_0" name="InRef"></DO>
+			<DO desc="" type="ENC_PseudoEnumKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="FSCH" id="FSCH_ENS0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Beh"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Health"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="SchdSt"></DO>
+			<DO desc="" type="INS_0" name="SchdEntr"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="ValENS"></DO>
+			<DO desc="" type="TCS_0" name="ActStrTm"></DO>
+			<DO desc="" type="TCS_0" name="NxtStrTm"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="SchdEnaErr"></DO>
+			<DO desc="" type="SPC_0" name="EnaReq"></DO>
+			<DO desc="" type="SPC_0" name="DsaReq"></DO>
+			<DO desc="" type="ING_0" name="SchdPrio"></DO>
+			<DO desc="" type="ING_0" name="NumEntr"></DO>
+			<DO desc="" type="ING_0" name="SchdIntv"></DO>
+			<DO desc="" type="ENG_PseudoEnumKind" name="ValENG"></DO>
+			<DO desc="" type="TSG_0" name="StrTm"></DO>
+			<DO desc="" type="SPG_0" name="EvtTrg"></DO>
+			<DO desc="" type="ORG_0" name="InSyn"></DO>
+			<DO desc="" type="SPG_0" name="SchdReuse"></DO>
+			<DO desc="" type="ORG_0" name="InRef"></DO>
+			<DO desc="" type="ENC_PseudoEnumKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="FSCH" id="FSCH_MV0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Beh"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="Health"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="SchdSt"></DO>
+			<DO desc="" type="INS_0" name="SchdEntr"></DO>
+			<DO desc="" type="TCS_0" name="ActStrTm"></DO>
+			<DO desc="" type="TCS_0" name="NxtStrTm"></DO>
+			<DO desc="" type="ENS_PseudoEnumKind" name="SchdEnaErr"></DO>
+			<DO desc="" type="MV_0" name="ValMV"></DO>
+			<DO desc="" type="SPC_0" name="EnaReq"></DO>
+			<DO desc="" type="SPC_0" name="DsaReq"></DO>
+			<DO desc="" type="ING_0" name="SchdPrio"></DO>
+			<DO desc="" type="ING_0" name="NumEntr"></DO>
+			<DO desc="" type="ING_0" name="SchdIntv"></DO>
+			<DO desc="" type="ASG_0" name="ValASG"></DO>
+			<DO desc="" type="TSG_0" name="StrTm"></DO>
+			<DO desc="" type="SPG_0" name="EvtTrg"></DO>
+			<DO desc="" type="ORG_0" name="InSyn"></DO>
+			<DO desc="" type="SPG_0" name="SchdReuse"></DO>
+			<DO desc="" type="ORG_0" name="InRef"></DO>
+			<DO desc="" type="ENC_PseudoEnumKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="LLN0" id="LLN0_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="SPS_0" name="LocKey"></DO>
+			<DO desc="" type="SPS_0" name="Loc"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+			<DO desc="" type="SPC_0" name="LocSta"></DO>
+			<DO desc="" type="SPG_0" name="MltLev"></DO>
+		</LNodeType>
+		<LNodeType lnClass="LPHD" id="LPHD_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="DPL_0" name="PhyNam"></DO>
+			<DO desc="" type="ENS_HealthKind" name="PhyHealth"></DO>
+			<DO desc="" type="SPS_0" name="Proxy"></DO>
+		</LNodeType>
+		<LNodeType lnClass="MMET" id="MMET_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="MV_0" name="PoaInsol"></DO>
+			<DO desc="" type="MV_0" name="EnvTmp"></DO>
+			<DO desc="" type="MV_0" name="WetBlbTmp"></DO>
+			<DO desc="" type="MV_0" name="CloudCvr"></DO>
+			<DO desc="" type="MV_0" name="EnvHum"></DO>
+			<DO desc="" type="MV_0" name="DewPt"></DO>
+			<DO desc="" type="MV_0" name="DffInsol"></DO>
+			<DO desc="" type="MV_0" name="DctInsol"></DO>
+			<DO desc="" type="MV_0" name="DlDur"></DO>
+			<DO desc="" type="MV_0" name="HorInsol"></DO>
+			<DO desc="" type="MV_0" name="HorWdDir"></DO>
+			<DO desc="" type="MV_0" name="HorWdSpd"></DO>
+			<DO desc="" type="MV_0" name="VerWdDir"></DO>
+			<DO desc="" type="MV_0" name="VerWdSpd"></DO>
+			<DO desc="" type="MV_0" name="WdGustSpd"></DO>
+			<DO desc="" type="MV_0" name="EnvPres"></DO>
+			<DO desc="" type="MV_0" name="RnFll"></DO>
+			<DO desc="" type="MV_0" name="SnwDen"></DO>
+			<DO desc="" type="MV_0" name="SnwTmp"></DO>
+			<DO desc="" type="MV_0" name="SnwCvr"></DO>
+			<DO desc="" type="MV_0" name="SnwFll"></DO>
+			<DO desc="" type="MV_0" name="SnwEq"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="MMTR" id="MMTR_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="BCR_0" name="TotVAh"></DO>
+			<DO desc="" type="BCR_0" name="TotWh"></DO>
+			<DO desc="" type="BCR_0" name="TotVArh"></DO>
+			<DO desc="" type="BCR_0" name="SupWh"></DO>
+			<DO desc="" type="BCR_0" name="SupVArh"></DO>
+			<DO desc="" type="BCR_0" name="DmdWh"></DO>
+			<DO desc="" type="BCR_0" name="DmdVArh"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+		</LNodeType>
+		<LNodeType lnClass="MMXU" id="MMXU_0">
+			<DO desc="" type="LPL_0" name="NamPlt"></DO>
+			<DO desc="" type="ENS_BehaviourModeKind" name="Beh"></DO>
+			<DO desc="" type="ENS_HealthKind" name="Health"></DO>
+			<DO desc="" type="SPS_0" name="PFExtQud"></DO>
+			<DO desc="" type="ENS_QuadrantRunningStateKind" name="PQSt"></DO>
+			<DO desc="" type="MV_0" name="TotW"></DO>
+			<DO desc="" type="MV_0" name="TotVAr"></DO>
+			<DO desc="" type="MV_0" name="TotVA"></DO>
+			<DO desc="" type="MV_0" name="TotPF"></DO>
+			<DO desc="" type="MV_0" name="Hz"></DO>
+			<DO desc="" type="DEL_0" name="PPV"></DO>
+			<DO desc="" type="WYE_0" name="PNV"></DO>
+			<DO desc="" type="WYE_0" name="PhV"></DO>
+			<DO desc="" type="WYE_0" name="A"></DO>
+			<DO desc="" type="WYE_0" name="W"></DO>
+			<DO desc="" type="WYE_0" name="VAr"></DO>
+			<DO desc="" type="WYE_0" name="VA"></DO>
+			<DO desc="" type="WYE_0" name="PF"></DO>
+			<DO desc="" type="WYE_0" name="Z"></DO>
+			<DO desc="" type="MV_0" name="AvAPhs"></DO>
+			<DO desc="" type="MV_0" name="AvPPVPhs"></DO>
+			<DO desc="" type="MV_0" name="AvPhVPhs"></DO>
+			<DO desc="" type="MV_0" name="AvWPhs"></DO>
+			<DO desc="" type="MV_0" name="AvVAPhs"></DO>
+			<DO desc="" type="MV_0" name="AvVArPhs"></DO>
+			<DO desc="" type="MV_0" name="AvPFPhs"></DO>
+			<DO desc="" type="MV_0" name="AvZPhs"></DO>
+			<DO desc="" type="MV_0" name="MaxAPhs"></DO>
+			<DO desc="" type="MV_0" name="MaxPPVPhs"></DO>
+			<DO desc="" type="MV_0" name="MaxPhVPhs"></DO>
+			<DO desc="" type="MV_0" name="MaxWPhs"></DO>
+			<DO desc="" type="MV_0" name="MaxVAPhs"></DO>
+			<DO desc="" type="MV_0" name="MaxVArPhs"></DO>
+			<DO desc="" type="MV_0" name="MaxPFPhs"></DO>
+			<DO desc="" type="MV_0" name="MaxZPhs"></DO>
+			<DO desc="" type="MV_0" name="MinAPhs"></DO>
+			<DO desc="" type="MV_0" name="MinPPVPhs"></DO>
+			<DO desc="" type="MV_0" name="MinPhVPhs"></DO>
+			<DO desc="" type="MV_0" name="MinWPhs"></DO>
+			<DO desc="" type="MV_0" name="MinVAPhs"></DO>
+			<DO desc="" type="MV_0" name="MinVArPhs"></DO>
+			<DO desc="" type="MV_0" name="MinPFPhs"></DO>
+			<DO desc="" type="MV_0" name="MinZPhs"></DO>
+			<DO desc="" type="MV_0" name="HzRte"></DO>
+			<DO desc="" type="ENC_BehaviourModeKind" name="Mod"></DO>
+		</LNodeType>
+		<DOType cdc="APC" id="APC_0" desc="Default DO templates for the CDC type APC">
+			<DA bType="Struct" fc="MX" name="origin" type="Originator_0"></DA>
+			<DA bType="INT8U" fc="MX" name="ctlNum"></DA>
+			<DA bType="Struct" fc="MX" name="mxVal" dchg="true" type="AnalogueValue_0"></DA>
+			<DA bType="Quality" fc="MX" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="MX" name="t"></DA>
+			<DA bType="Struct" fc="CF" name="units" dchg="true" type="Unit_0"></DA>
+			<DA bType="Enum" fc="CF" name="ctlModel" type="CtlModelKind"></DA>
+			<DA bType="Struct" fc="CO" name="ctlVal" type="AnalogueValueCtl_0"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ASG" id="ASG_0" desc="Default DO templates for the CDC type ASG">
+			<DA bType="Struct" fc="SP" name="setMag" type="AnalogueValueCtl_0"></DA>
+			<DA bType="Struct" fc="CF" name="units" dchg="true" type="Unit_0"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="BCR" id="BCR_0" desc="Default DO templates for the CDC type BCR">
+			<DA bType="INT64" fc="ST" name="actVal" dchg="true"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="Struct" fc="CF" name="units" dchg="true" type="Unit_0"></DA>
+			<DA bType="FLOAT32" fc="CF" name="pulsQty" dchg="true"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="CMV" id="CMV_0" desc="Default DO templates for the CDC type CMV">
+			<DA bType="Struct" fc="MX" name="cVal" dchg="true" dupd="true" type="Vector_0"></DA>
+			<DA bType="Quality" fc="MX" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="MX" name="t"></DA>
+			<DA bType="Struct" fc="CF" name="units" dchg="true" type="Unit_0"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="CSG" id="CSG_0" desc="Default DO templates for the CDC type CSG">
+			<DA bType="Struct" fc="SP" name="crvPts" dchg="true" type="Point_0" count="100"></DA>
+			<DA bType="FLOAT32" fc="SP" name="pointZ" dchg="true"></DA>
+			<DA bType="INT16U" fc="SP" name="numPts" dchg="true"></DA>
+			<DA bType="Struct" fc="CF" name="xUnits" dchg="true" type="Unit_0"></DA>
+			<DA bType="Struct" fc="CF" name="yUnits" dchg="true" type="Unit_0"></DA>
+			<DA bType="Struct" fc="CF" name="zUnits" dchg="true" type="Unit_0"></DA>
+			<DA bType="INT16U" fc="CF" name="maxPts" dchg="true"></DA>
+			<DA bType="VisString255" fc="DC" name="xD"></DA>
+			<DA bType="VisString255" fc="DC" name="yD"></DA>
+			<DA bType="VisString255" fc="DC" name="zD"></DA>
+		</DOType>
+		<DOType cdc="CUG" id="CUG_0" desc="Default DO templates for the CDC type CUG">
+			<DA bType="Currency" fc="SP" name="cur" dchg="true"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="DEL" id="DEL_0" desc="Default DO templates for the CDC type DEL">
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+			<SDO desc="Value of phase A to phase B" name="phsAB" type="CMV_0"></SDO>
+			<SDO desc="Value of phase B to phase C" name="phsBC" type="CMV_0"></SDO>
+			<SDO desc="Value of phase C to phase A" name="phsCA" type="CMV_0"></SDO>
+		</DOType>
+		<DOType cdc="DPL" id="DPL_0" desc="Default DO templates for the CDC type DPL">
+			<DA bType="VisString255" fc="DC" name="vendor"></DA>
+			<DA bType="VisString255" fc="DC" name="hwRev"></DA>
+			<DA bType="VisString255" fc="DC" name="swRev"></DA>
+			<DA bType="VisString255" fc="DC" name="serNum"></DA>
+			<DA bType="VisString255" fc="DC" name="model"></DA>
+			<DA bType="VisString255" fc="DC" name="location"></DA>
+			<DA bType="VisString64" fc="DC" name="nameDA"></DA>
+			<DA bType="VisString255" fc="DC" name="owner"></DA>
+			<DA bType="VisString255" fc="DC" name="ePSName"></DA>
+			<DA bType="VisString255" fc="DC" name="primeOper"></DA>
+			<DA bType="VisString255" fc="DC" name="secondOper"></DA>
+			<DA bType="FLOAT32" fc="DC" name="latitude"></DA>
+			<DA bType="FLOAT32" fc="DC" name="longitude"></DA>
+			<DA bType="FLOAT32" fc="DC" name="altitude"></DA>
+			<DA bType="VisString255" fc="DC" name="mRID"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENC" id="ENC_0" desc="Default DO templates for the CDC type ENC">
+			<DA bType="Struct" fc="ST" name="origin" type="Originator_0"></DA>
+			<DA bType="INT8U" fc="ST" name="ctlNum"></DA>
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="PseudoEnumKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="Enum" fc="CF" name="ctlModel" type="CtlModelKind"></DA>
+			<DA bType="Enum" fc="CO" name="ctlVal" type="PseudoEnumKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_0" desc="Default DO templates for the CDC type ENG">
+			<DA bType="Enum" fc="SP" name="setVal" type="PseudoEnumKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENS" id="ENS_0" desc="Default DO templates for the CDC type ENS">
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="PseudoEnumKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="LPL" id="LPL_0" desc="Default DO templates for the CDC type LPL">
+			<DA bType="VisString255" fc="DC" name="vendor"></DA>
+			<DA bType="VisString255" fc="DC" name="swRev"></DA>
+			<DA bType="VisString255" fc="DC" name="configRev"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="INC" id="INC_0" desc="Default DO templates for the CDC type INC">
+			<DA bType="Struct" fc="ST" name="origin" type="Originator_0"></DA>
+			<DA bType="INT8U" fc="ST" name="ctlNum"></DA>
+			<DA bType="INT32" fc="ST" name="stVal" dchg="true" dupd="true"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="Enum" fc="CF" name="ctlModel" type="CtlModelKind"></DA>
+			<DA bType="Struct" fc="CF" name="units" dchg="true" type="Unit_0"></DA>
+			<DA bType="INT32" fc="CO" name="ctlVal"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ING" id="ING_0" desc="Default DO templates for the CDC type ING">
+			<DA bType="INT32" fc="SP" name="setVal" dchg="true"></DA>
+			<DA bType="Struct" fc="CF" name="units" dchg="true" type="Unit_0"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="INS" id="INS_0" desc="Default DO templates for the CDC type INS">
+			<DA bType="BOOLEAN" fc="ST" name="stVal" dchg="true"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="Struct" fc="CF" name="units" dchg="true" type="Unit_0"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="MV" id="MV_0" desc="Default DO templates for the CDC type MV">
+			<DA bType="Struct" fc="MX" name="mag" dchg="true" dupd="true" type="AnalogueValue_0"></DA>
+			<DA bType="Quality" fc="MX" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="MX" name="t"></DA>
+			<DA bType="Struct" fc="CF" name="units" dchg="true" type="Unit_0"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ORG" id="ORG_0" desc="Default DO templates for the CDC type ORG">
+			<DA bType="ObjectReference" fc="ST" name="setSrcRef" dchg="true"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ORS" id="ORS_0" desc="Default DO templates for the CDC type ORS">
+			<DA bType="ObjectReference" fc="ST" name="stVal" dchg="true"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="SPC" id="SPC_0" desc="Default DO templates for the CDC type SPC">
+			<DA bType="Struct" fc="ST" name="origin" type="Originator_0"></DA>
+			<DA bType="INT8U" fc="ST" name="ctlNum"></DA>
+			<DA bType="BOOLEAN" fc="ST" name="stVal" dchg="true"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="Enum" fc="CF" name="ctlModel" type="CtlModelKind"></DA>
+			<DA bType="BOOLEAN" fc="CO" name="ctlVal"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="SPG" id="SPG_0" desc="Default DO templates for the CDC type SPG">
+			<DA bType="BOOLEAN" fc="SP" name="setVal" dchg="true"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="SPS" id="SPS_0" desc="Default DO templates for the CDC type SPS">
+			<DA bType="INT32" fc="ST" name="stVal" dchg="true"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="TCS" id="TCS_0" desc="Default DO templates for the CDC type TCS">
+			<DA bType="Timestamp" fc="ST" name="stVal" dchg="true" dupd="true"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="TSG" id="TSG_0" desc="Default DO templates for the CDC type TSG">
+			<DA bType="Timestamp" fc="SP" name="setTm" dchg="true"></DA>
+			<DA bType="Struct" fc="SP" name="setCal" dchg="true" type="CalendarTime_0"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="VSG" id="VSG_0" desc="Default DO templates for the CDC type VSG">
+			<DA bType="VisString255" fc="SP" name="setVal" dchg="true"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="WYE" id="WYE_0" desc="Default DO templates for the CDC type WYE">
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+			<SDO desc="Value of phase A" name="phsA" type="CMV_0"></SDO>
+			<SDO desc="Value of phase B" name="phsB" type="CMV_0"></SDO>
+			<SDO desc="Value of phase C" name="phsC" type="CMV_0"></SDO>
+			<SDO desc="Value of measured phase neutral" name="neut" type="CMV_0"></SDO>
+			<SDO desc="net value" name="net" type="CMV_0"></SDO>
+			<SDO desc="residual value" name="res" type="CMV_0"></SDO>
+		</DOType>
+		<DOType cdc="ENS" id="ENS_BehaviourModeKind" desc="Default DO Template for enuemration ENS_BehaviourModeKind">
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="BehaviourModeKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENS" id="ENS_HealthKind" desc="Default DO Template for enuemration ENS_HealthKind">
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="HealthKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENC" id="ENC_BehaviourModeKind" desc="Default DO Template for enuemration ENC_BehaviourModeKind">
+			<DA bType="Struct" fc="ST" name="origin" type="Originator_0"></DA>
+			<DA bType="INT8U" fc="ST" name="ctlNum"></DA>
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="BehaviourModeKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="Enum" fc="CF" name="ctlModel" type="CtlModelKind"></DA>
+			<DA bType="Enum" fc="CO" name="ctlVal" type="BehaviourModeKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENS" id="ENS_PhaseKind" desc="Default DO Template for enuemration ENS_PhaseKind">
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="PhaseKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENS" id="ENS_DERSynchronizationKind" desc="Default DO Template for enuemration ENS_DERSynchronizationKind">
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="DERSynchronizationKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENS" id="ENS_DERStateKind" desc="Default DO Template for enuemration ENS_DERStateKind">
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="DERStateKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENC" id="ENC_DERStateTransitionKind" desc="Default DO Template for enuemration ENC_DERStateTransitionKind">
+			<DA bType="Struct" fc="ST" name="origin" type="Originator_0"></DA>
+			<DA bType="INT8U" fc="ST" name="ctlNum"></DA>
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="DERStateTransitionKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="Enum" fc="CF" name="ctlModel" type="CtlModelKind"></DA>
+			<DA bType="Enum" fc="CO" name="ctlVal" type="DERStateTransitionKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_ReactivePowerRefParamKind" desc="Default DO Template for enuemration ENG_ReactivePowerRefParamKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="ReactivePowerRefParamKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_ECPConnKind" desc="Default DO Template for enuemration ENG_ECPConnKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="ECPConnKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_PhaseKind" desc="Default DO Template for enuemration ENG_PhaseKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="PhaseKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_DERUnitKind" desc="Default DO Template for enuemration ENG_DERUnitKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="DERUnitKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_InverterControlSourceKind" desc="Default DO Template for enuemration ENG_InverterControlSourceKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="InverterControlSourceKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_CoolingMethodKind" desc="Default DO Template for enuemration ENG_CoolingMethodKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="CoolingMethodKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_IsolationKind" desc="Default DO Template for enuemration ENG_IsolationKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="IsolationKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_ACSystemKind" desc="Default DO Template for enuemration ENG_ACSystemKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="ACSystemKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_ChargeSourceKind" desc="Default DO Template for enuemration ENG_ChargeSourceKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="ChargeSourceKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENS" id="ENS_PseudoEnumKind" desc="Default DO Template for enuemration ENS_PseudoEnumKind">
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="PseudoEnumKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENC" id="ENC_PseudoEnumKind" desc="Default DO Template for enuemration ENC_PseudoEnumKind">
+			<DA bType="Struct" fc="ST" name="origin" type="Originator_0"></DA>
+			<DA bType="INT8U" fc="ST" name="ctlNum"></DA>
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="PseudoEnumKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="Enum" fc="CF" name="ctlModel" type="CtlModelKind"></DA>
+			<DA bType="Enum" fc="CO" name="ctlVal" type="PseudoEnumKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENG" id="ENG_PseudoEnumKind" desc="Default DO Template for enuemration ENG_PseudoEnumKind">
+			<DA bType="Enum" fc="SP" name="setVal" type="PseudoEnumKind"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DOType cdc="ENS" id="ENS_QuadrantRunningStateKind" desc="Default DO Template for enuemration ENS_QuadrantRunningStateKind">
+			<DA bType="Enum" fc="ST" name="stVal" dchg="true" dupd="true" type="QuadrantRunningStateKind"></DA>
+			<DA bType="Quality" fc="ST" name="q" qchg="true"></DA>
+			<DA bType="Timestamp" fc="ST" name="t"></DA>
+			<DA bType="VisString255" fc="DC" name="d"></DA>
+		</DOType>
+		<DAType id="AnalogueValue_0">
+			<BDA bType="FLOAT32" name="f"></BDA>
+		</DAType>
+		<DAType id="AnalogueValueCtl_0">
+			<BDA bType="FLOAT32" name="f"></BDA>
+		</DAType>
+		<DAType id="Unit_0">
+			<BDA bType="Enum" name="SIUnit" type="SIUnitKind"></BDA>
+		</DAType>
+		<DAType id="Vector_0">
+			<BDA bType="Struct" name="mag" type="AnalogueValue_0"></BDA>
+		</DAType>
+		<DAType id="Originator_0">
+			<BDA bType="Enum" name="orCat" type="OrCatKind"></BDA>
+			<BDA bType="Octet64" name="orIdent"></BDA>
+		</DAType>
+		<DAType id="Point_0">
+			<BDA bType="FLOAT32" name="xVal"></BDA>
+			<BDA bType="FLOAT32" name="yVal"></BDA>
+			<BDA bType="FLOAT32" name="zVal"></BDA>
+		</DAType>
+		<DAType id="CalendarTime_0">
+			<BDA bType="INT16U" name="occ"></BDA>
+			<BDA bType="Enum" name="occType" type="OccurrenceKind"></BDA>
+			<BDA bType="Enum" name="occPer" type="PeriodKind"></BDA>
+			<BDA bType="Enum" name="weekDay" type="WeekdayKind"></BDA>
+			<BDA bType="Enum" name="month" type="MonthKind"></BDA>
+			<BDA bType="INT8U" name="day"></BDA>
+			<BDA bType="INT8U" name="hr"></BDA>
+			<BDA bType="INT8U" name="mn"></BDA>
+		</DAType>
+		<EnumType id="BehaviourModeKind">
+			<EnumVal ord="1">on</EnumVal>
+			<EnumVal ord="2">on-blocked</EnumVal>
+			<EnumVal ord="3">test</EnumVal>
+			<EnumVal ord="4">test/blocked</EnumVal>
+			<EnumVal ord="5">off</EnumVal>
+		</EnumType>
+		<EnumType id="CoolingMethodKind">
+			<EnumVal ord="1">Passive air cooling (heatsink)</EnumVal>
+			<EnumVal ord="2">Forced air cooling (fan + heatsink)</EnumVal>
+			<EnumVal ord="3">Fluid cooling (water)</EnumVal>
+			<EnumVal ord="4">Heat pipe</EnumVal>
+			<EnumVal ord="98">Not applicable or not known</EnumVal>
+		</EnumType>
+		<EnumType id="CtlModelKind">
+			<EnumVal ord="0">status-only</EnumVal>
+			<EnumVal ord="1">direct-with-normal-security</EnumVal>
+			<EnumVal ord="2">sbo-with-normal-security</EnumVal>
+			<EnumVal ord="3">direct-with-enhanced-security</EnumVal>
+			<EnumVal ord="4">sbo-with-enhanced-security</EnumVal>
+		</EnumType>
+		<EnumType id="HealthKind">
+			<EnumVal ord="1">OK</EnumVal>
+			<EnumVal ord="2">Warning</EnumVal>
+			<EnumVal ord="3">Alarm</EnumVal>
+		</EnumType>
+		<EnumType id="MonthKind">
+			<EnumVal ord="0">reserved</EnumVal>
+			<EnumVal ord="1">January</EnumVal>
+			<EnumVal ord="2">February</EnumVal>
+			<EnumVal ord="3">March</EnumVal>
+			<EnumVal ord="4">April</EnumVal>
+			<EnumVal ord="5">May</EnumVal>
+			<EnumVal ord="6">June</EnumVal>
+			<EnumVal ord="7">July</EnumVal>
+			<EnumVal ord="8">August</EnumVal>
+			<EnumVal ord="9">September</EnumVal>
+			<EnumVal ord="10">October</EnumVal>
+			<EnumVal ord="11">November</EnumVal>
+			<EnumVal ord="12">December</EnumVal>
+		</EnumType>
+		<EnumType id="OccurrenceKind">
+			<EnumVal ord="0">Time</EnumVal>
+			<EnumVal ord="1">WeekDay</EnumVal>
+			<EnumVal ord="2">WeekOfYear</EnumVal>
+			<EnumVal ord="3">DayOfMonth</EnumVal>
+			<EnumVal ord="4">DayOfYear</EnumVal>
+		</EnumType>
+		<EnumType id="PeriodKind">
+			<EnumVal ord="0">Hour</EnumVal>
+			<EnumVal ord="1">Day</EnumVal>
+			<EnumVal ord="2">Week</EnumVal>
+			<EnumVal ord="3">Month</EnumVal>
+			<EnumVal ord="4">Year</EnumVal>
+		</EnumType>
+		<EnumType id="SIUnitKind">
+			<EnumVal ord="1"></EnumVal>
+			<EnumVal ord="2">m</EnumVal>
+			<EnumVal ord="3">kg</EnumVal>
+			<EnumVal ord="4">s</EnumVal>
+			<EnumVal ord="5">A</EnumVal>
+			<EnumVal ord="6">K</EnumVal>
+			<EnumVal ord="7">mol</EnumVal>
+			<EnumVal ord="8">cd</EnumVal>
+			<EnumVal ord="9">deg</EnumVal>
+			<EnumVal ord="10">rad</EnumVal>
+			<EnumVal ord="11">sr</EnumVal>
+			<EnumVal ord="21">Gy</EnumVal>
+			<EnumVal ord="22">Bq</EnumVal>
+			<EnumVal ord="23">°C</EnumVal>
+			<EnumVal ord="24">Sv</EnumVal>
+			<EnumVal ord="25">F</EnumVal>
+			<EnumVal ord="26">C</EnumVal>
+			<EnumVal ord="27">S</EnumVal>
+			<EnumVal ord="28">H</EnumVal>
+			<EnumVal ord="29">V</EnumVal>
+			<EnumVal ord="30">ohm</EnumVal>
+			<EnumVal ord="31">J</EnumVal>
+			<EnumVal ord="32">N</EnumVal>
+			<EnumVal ord="33">Hz</EnumVal>
+			<EnumVal ord="34">lx</EnumVal>
+			<EnumVal ord="35">Lm</EnumVal>
+			<EnumVal ord="36">Wb</EnumVal>
+			<EnumVal ord="37">T</EnumVal>
+			<EnumVal ord="38">W</EnumVal>
+			<EnumVal ord="39">Pa</EnumVal>
+			<EnumVal ord="41">m²</EnumVal>
+			<EnumVal ord="42">m³</EnumVal>
+			<EnumVal ord="43">m/s</EnumVal>
+			<EnumVal ord="44">m/s²</EnumVal>
+			<EnumVal ord="45">m³/s</EnumVal>
+			<EnumVal ord="46">m/m³</EnumVal>
+			<EnumVal ord="47">M</EnumVal>
+			<EnumVal ord="48">kg/m³</EnumVal>
+			<EnumVal ord="49">m²/s</EnumVal>
+			<EnumVal ord="50">W/m K</EnumVal>
+			<EnumVal ord="51">J/K</EnumVal>
+			<EnumVal ord="52">ppm</EnumVal>
+			<EnumVal ord="53">1/s</EnumVal>
+			<EnumVal ord="54">rad/s</EnumVal>
+			<EnumVal ord="55">W/m²</EnumVal>
+			<EnumVal ord="56">J/m²</EnumVal>
+			<EnumVal ord="57">S/m</EnumVal>
+			<EnumVal ord="58">K/s</EnumVal>
+			<EnumVal ord="59">Pa/s</EnumVal>
+			<EnumVal ord="60">J/kg K</EnumVal>
+			<EnumVal ord="61">VA</EnumVal>
+			<EnumVal ord="62">Watts</EnumVal>
+			<EnumVal ord="63">VAr</EnumVal>
+			<EnumVal ord="64">phi</EnumVal>
+			<EnumVal ord="65">cos(phi)</EnumVal>
+			<EnumVal ord="66">Vs</EnumVal>
+			<EnumVal ord="67">V²</EnumVal>
+			<EnumVal ord="68">As</EnumVal>
+			<EnumVal ord="69">A²</EnumVal>
+			<EnumVal ord="70">A²t</EnumVal>
+			<EnumVal ord="71">VAh</EnumVal>
+			<EnumVal ord="72">Wh</EnumVal>
+			<EnumVal ord="73">VArh</EnumVal>
+			<EnumVal ord="74">V/Hz</EnumVal>
+			<EnumVal ord="75">Hz/s</EnumVal>
+			<EnumVal ord="76">char</EnumVal>
+			<EnumVal ord="77">char/s</EnumVal>
+			<EnumVal ord="78">kgm²</EnumVal>
+			<EnumVal ord="79">dB</EnumVal>
+			<EnumVal ord="80">J/Wh</EnumVal>
+			<EnumVal ord="81">W/s</EnumVal>
+			<EnumVal ord="82">l/s</EnumVal>
+			<EnumVal ord="83">dBm</EnumVal>
+			<EnumVal ord="84">h</EnumVal>
+			<EnumVal ord="85">min</EnumVal>
+			<EnumVal ord="86">Ohm/m</EnumVal>
+			<EnumVal ord="87">percent/s</EnumVal>
+			<EnumVal ord="88">%</EnumVal>
+			<EnumVal ord="89">Ah</EnumVal>
+		</EnumType>
+		<EnumType id="WeekdayKind">
+			<EnumVal ord="0">reserved</EnumVal>
+			<EnumVal ord="1">Monday</EnumVal>
+			<EnumVal ord="2">Tuesday</EnumVal>
+			<EnumVal ord="3">Wednesday</EnumVal>
+			<EnumVal ord="4">Thursday</EnumVal>
+			<EnumVal ord="5">Friday</EnumVal>
+			<EnumVal ord="6">Saturday</EnumVal>
+			<EnumVal ord="7">Sunday</EnumVal>
+		</EnumType>
+		<EnumType id="ACSystemKind">
+			<EnumVal ord="1">Single phase</EnumVal>
+			<EnumVal ord="2">Two phases</EnumVal>
+			<EnumVal ord="3">Three phases</EnumVal>
+		</EnumType>
+		<EnumType id="ChargeSourceKind">
+			<EnumVal ord="1">Mode A - Storage may not export to grid, but may charge</EnumVal>
+			<EnumVal ord="2">Mode B - Storage may export to grid, but not charge</EnumVal>
+			<EnumVal ord="3">Mode C - Storage may both charge or discharge from the grid</EnumVal>
+		</EnumType>
+		<EnumType id="DERStateKind">
+			<EnumVal ord="1">on but disconnected and not ready</EnumVal>
+			<EnumVal ord="2">starting up</EnumVal>
+			<EnumVal ord="3">disconnected and available</EnumVal>
+			<EnumVal ord="4">disconnected and authorized</EnumVal>
+			<EnumVal ord="5">synchronizing</EnumVal>
+			<EnumVal ord="6">running</EnumVal>
+			<EnumVal ord="7">stopping and disconnecting under emergency conditions</EnumVal>
+			<EnumVal ord="8">stopping</EnumVal>
+			<EnumVal ord="9">disconnected and blocked</EnumVal>
+			<EnumVal ord="10">disconnected and in maintenance</EnumVal>
+			<EnumVal ord="11">failed</EnumVal>
+			<EnumVal ord="98">Not applicable or not known</EnumVal>
+		</EnumType>
+		<EnumType id="DERStateTransitionKind">
+			<EnumVal ord="1">Start</EnumVal>
+			<EnumVal ord="2">Connect</EnumVal>
+			<EnumVal ord="3">Disconnect</EnumVal>
+			<EnumVal ord="4">Disconnect under emergency conditions</EnumVal>
+			<EnumVal ord="5">Get blocked</EnumVal>
+			<EnumVal ord="6">Get unblocked</EnumVal>
+			<EnumVal ord="7">Go to maintenance</EnumVal>
+			<EnumVal ord="8">Go out of maintenance</EnumVal>
+			<EnumVal ord="9">Stop</EnumVal>
+			<EnumVal ord="10">Turn off controller</EnumVal>
+		</EnumType>
+		<EnumType id="DERSynchronizationKind">
+			<EnumVal ord="1">Unavailable to connect</EnumVal>
+			<EnumVal ord="2">Notsynchronized, available to connect</EnumVal>
+			<EnumVal ord="3">In synchronization process</EnumVal>
+			<EnumVal ord="4">Synchronized and not connected</EnumVal>
+			<EnumVal ord="5">Synchronized and connected</EnumVal>
+			<EnumVal ord="6">Synchronization failure</EnumVal>
+			<EnumVal ord="7">Disconnecting from grid</EnumVal>
+			<EnumVal ord="98">Not applicable or not known</EnumVal>
+		</EnumType>
+		<EnumType id="DERUnitKind">
+			<EnumVal ord="1">Diesel / gas engine</EnumVal>
+			<EnumVal ord="2">Gas Turbine engine</EnumVal>
+			<EnumVal ord="3">PV</EnumVal>
+			<EnumVal ord="4">PV plus Storage</EnumVal>
+			<EnumVal ord="5">Lithium Ion Battery Storage</EnumVal>
+			<EnumVal ord="6">Fuel cell</EnumVal>
+			<EnumVal ord="7">Hydro generator</EnumVal>
+			<EnumVal ord="8">Wind turbine</EnumVal>
+			<EnumVal ord="9">Flow battery storage</EnumVal>
+			<EnumVal ord="10">Air compression storage</EnumVal>
+			<EnumVal ord="11">Flywheel storage</EnumVal>
+			<EnumVal ord="12">Capacitor storage</EnumVal>
+			<EnumVal ord="13">Vehicle-to-Grid (V2G)</EnumVal>
+			<EnumVal ord="50">Mixed, hybrid DER</EnumVal>
+			<EnumVal ord="98">Not applicable or not known</EnumVal>
+		</EnumType>
+		<EnumType id="ECPConnKind">
+			<EnumVal ord="1">PoC: Electric point positioned at the connection of the DER to its local EPS</EnumVal>
+			<EnumVal ord="2">IntDER: Electric point positioned internally to the DER</EnumVal>
+			<EnumVal ord="3">PCC: Electric point positioned at the connection of local EPS to area EPS, the EPS contains DERs including local loads</EnumVal>
+			<EnumVal ord="4">PCCD: specific PCC when the EPS contains only DERs with no loads</EnumVal>
+			<EnumVal ord="5">PoCoL: Electric point positioned at the connection of load within the DER local EPS</EnumVal>
+			<EnumVal ord="6">ExtPCC: Electric point positioned at the connection to a PCC external to the area EPS</EnumVal>
+			<EnumVal ord="7">ExtPoC: Electric point positioned at the connection of DER within local EPS outside of the DER local EPS</EnumVal>
+			<EnumVal ord="8">AuxLoad: Connection of auxilliary load to DER</EnumVal>
+			<EnumVal ord="9">PoCG: Connection of group of possibly different types of DERs to local EPS</EnumVal>
+			<EnumVal ord="98">Not applicable or not known</EnumVal>
+		</EnumType>
+		<EnumType id="InverterControlSourceKind">
+			<EnumVal ord="1">Current-source inverter (CSI)</EnumVal>
+			<EnumVal ord="2">Voltage-controlled voltage-source inverter (VCVSI)</EnumVal>
+			<EnumVal ord="3">Current-controlled voltage-source inverter (CCVSI)</EnumVal>
+			<EnumVal ord="98">Not applicable or not known</EnumVal>
+		</EnumType>
+		<EnumType id="IsolationKind">
+			<EnumVal ord="1">Low frequency transformer isolated</EnumVal>
+			<EnumVal ord="2">Hi frequency transformer isolated</EnumVal>
+			<EnumVal ord="3">Non-isolated, grounded</EnumVal>
+			<EnumVal ord="4">Non-isolated, isolated DC source</EnumVal>
+			<EnumVal ord="98">Not applicable or not known</EnumVal>
+		</EnumType>
+		<EnumType id="OrCatKind">
+			<EnumVal ord="0">not-supported</EnumVal>
+			<EnumVal ord="1">bay-control</EnumVal>
+			<EnumVal ord="2">station-control</EnumVal>
+			<EnumVal ord="3"> remote-control</EnumVal>
+			<EnumVal ord="4">automatic-bay</EnumVal>
+			<EnumVal ord="5">automatic-station</EnumVal>
+			<EnumVal ord="6">automatic-remote</EnumVal>
+			<EnumVal ord="7">maintenance</EnumVal>
+			<EnumVal ord="8">process</EnumVal>
+		</EnumType>
+		<EnumType id="PhaseKind">
+			<EnumVal ord="1">Single phase to neutral</EnumVal>
+			<EnumVal ord="2">Split phase</EnumVal>
+			<EnumVal ord="3">2-phase</EnumVal>
+			<EnumVal ord="4">3-phase delta</EnumVal>
+			<EnumVal ord="5">3-phase wye / 4-wires</EnumVal>
+			<EnumVal ord="6">3-phase wye / 5-wires</EnumVal>
+			<EnumVal ord="9">DC</EnumVal>
+			<EnumVal ord="98">Not applicable or not known</EnumVal>
+		</EnumType>
+		<EnumType id="QuadrantRunningStateKind">
+			<EnumVal ord="1">P greater than zero, Q greater than zero</EnumVal>
+			<EnumVal ord="2">P less than zero, Q greater than zero</EnumVal>
+			<EnumVal ord="3">P less than zero, Q less than zero</EnumVal>
+			<EnumVal ord="4">P greater than zero, Q less than zero</EnumVal>
+			<EnumVal ord="5">P equals zero, Q greater than zero</EnumVal>
+			<EnumVal ord="6">P equals zero, Q less than zero</EnumVal>
+			<EnumVal ord="7">P greater than zero, Q equals zero</EnumVal>
+			<EnumVal ord="8">P less than zero, Q equals zero</EnumVal>
+			<EnumVal ord="9">P equals zero, Q equals zero</EnumVal>
+		</EnumType>
+		<EnumType id="ReactivePowerRefParamKind">
+			<EnumVal ord="1">Reactive power in percent of WMax</EnumVal>
+			<EnumVal ord="2">Reactive power in percent of VArMax</EnumVal>
+			<EnumVal ord="3">Reactive power in percent of VArAvl</EnumVal>
+			<EnumVal ord="98">Not applicable or not known</EnumVal>
+		</EnumType>
+		<EnumType id="ScheduleEnablingErrorKind">
+			<EnumVal ord="1">None</EnumVal>
+			<EnumVal ord="2">Missing valid NumEntr</EnumVal>
+			<EnumVal ord="3">Missing valid SchdIntv</EnumVal>
+			<EnumVal ord="4">Missing valid schedule values</EnumVal>
+			<EnumVal ord="5">Inconsistent values CDC</EnumVal>
+			<EnumVal ord="6">Missing valid StrTm</EnumVal>
+			<EnumVal ord="99">Other</EnumVal>
+		</EnumType>
+		<EnumType id="ScheduleStateKind">
+			<EnumVal ord="1">Not ready</EnumVal>
+			<EnumVal ord="2">Start Time required</EnumVal>
+			<EnumVal ord="3">Ready</EnumVal>
+			<EnumVal ord="4">Running</EnumVal>
+		</EnumType>
+		<EnumType id="PseudoEnumKind">
+			<EnumVal ord="1">Pseudo state on</EnumVal>
+			<EnumVal ord="2">Pseudo state off</EnumVal>
+			<EnumVal ord="3">Pseudo state unknown</EnumVal>
+		</EnumType>
+	</DataTypeTemplates>
+</SCL>

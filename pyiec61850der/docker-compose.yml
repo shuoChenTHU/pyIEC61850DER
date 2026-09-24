@@ -1,0 +1,85 @@
+services:
+  mega_sim_testing:
+    build:
+        context: ./
+        dockerfile: ./container/build/Dockerfile
+    image: mega_sim_testing:1.0
+    container_name: mega_sim_testing
+    restart: 'always'
+    volumes:
+      - /sys:/rootfs/sys:ro
+      - /proc:/rootfs/proc:ro
+      - /etc:/rootfs/etc:ro
+      - ./settings/config.yaml:/work/settings/config.yaml
+      - ./secret/influxdb.json:/work/secret/influxdb.json
+      - der_data:/work/data/archive
+      - logs:/work/logs
+    environment:
+      HOST_PROC: /rootfs/proc
+      HOST_SYS: /rootfs/sys
+      HOST_ETC: /rootfs/etc
+    ports:
+      - '60850:61850'
+  restarter:
+    image: docker:cli
+    container_name: cls_restarter
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      /bin/sh -c "
+      echo '=== Cls_restarter Service Initialized ===';
+      while true; do
+        for i in $$(seq 1 48); do
+          echo \"[$$(date '+%Y-%m-%d %H:%M:%S')] examining restarting flag: false -> idle\";
+          sleep 1800;
+        done;
+        echo \"[$$(date '+%Y-%m-%d %H:%M:%S')] examining restarting flag: true -> performing restart\";
+        docker restart mega_sim_testing;
+      done"
+    restart: unless-stopped
+
+  # Deactivate the network_sniffer if you DO NOT need it
+  network_sniffer:
+    image: nicolaka/netshoot:latest
+    container_name: network_sniffer
+    network_mode: "host"
+    volumes:
+      - mms_captures:/captures
+    command: >
+      sh -c '
+      while true; do
+        CURRENT_HOUR=$$(date -u +"%H")
+        if [ "$$CURRENT_HOUR" -ge 5 ] && [ "$$CURRENT_HOUR" -lt 20 ]; then
+          echo "Within time window (5am-8pm UTC). Starting capture..."
+
+          # Generate a timestamp prefix (e.g., /captures/20260924_080000_capture)
+          TIMESTAMP=$$(date -u +"%Y%m%d_%H%M%S")
+          
+          # Simple, bulletproof filter: captures ALL TCP traffic on port 61850
+          dumpcap -i br-57cdcdd1b5a0 -f "tcp port 61850 and (tcp[13] & 0x17 != 0 or ip[20:2] - ((ip[0] & 0x0f) * 4) - ((tcp[12] & 0xf0) >> 2) > 0)" -b filesize:100000 -w /captures/$${TIMESTAMP}_mms_traffic.pcap &
+          CAP_PID=$$!
+          
+          while [ "$$(date -u +"%H")" -ge 5 ] && [ "$$(date -u +"%H")" -lt 20 ]; do
+            sleep 60
+          done
+          
+          echo "Exited time window. Stopping capture..."
+          kill $$CAP_PID
+          wait $$CAP_PID 2>/dev/null
+        else
+          echo "Outside time window. Sleeping for 5 minutes..."
+          sleep 300
+        fi
+      done
+      '
+volumes:
+  sys:
+  proc:
+  etc:
+  der_data:
+    driver: local
+  mms_captures:
+    driver: local
+  logs:
+    driver: local

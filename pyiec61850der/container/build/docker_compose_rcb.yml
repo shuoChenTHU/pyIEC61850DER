@@ -1,0 +1,12 @@
+services:
+  iec61850_rcb_subscriber:
+    image: mega_sim_testing:1.0
+    container_name: iec61850_rcb_subscriber
+    restart: 'always'
+    volumes:
+      - /usr/local/bin/python3.13:/usr/bin/python3 # Mounts your Pi's Python binary
+      - /usr/local/lib/python3.13:/usr/lib/python3.13
+    ports:
+      - '40500:61850'
+    working_dir: /work
+    command: python /work/tester/func_tests/ied_client_rcb_tester4.py

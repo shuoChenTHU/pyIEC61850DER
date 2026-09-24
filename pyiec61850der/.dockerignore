@@ -1,0 +1,31 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+.prof
+htmlcov
+dist
+*.egg-info
+
+# --- Ignore Deep Contents, Keep Root Directory ---
+model/outputs/**
+!model/outputs/
+
+data/archive/**
+!data/archive/
+
+logs/*
+!logs/
+
+# --- Completely Ignore Folder & Contents ---
+optimization
+tester/module_tests
+container/batch
+model/config_SP5_Enum.xml
+simulation/pandapower61850

@@ -1,0 +1,70 @@
+version: '3.5'
+networks: # comment out the network part if the vIED is running in a local network
+ influxdb_network-proxy:
+   external:
+     name: influxdb_network
+services:
+  mega_sim_testing:
+    build:
+        context: ./
+        dockerfile: ./container/build/Dockerfile
+    image: mega_sim_testing:1.0
+    container_name: mega_sim_testing
+    restart: 'always'
+    volumes:
+      - /sys:/rootfs/sys:ro
+      - /proc:/rootfs/proc:ro
+      - /etc:/rootfs/etc:ro
+      - ./settings/config.yaml:/work/settings/config.yaml
+      - ./secret/influxdb.json:/work/secret/influxdb.json
+      - der_data:/work/data/archive
+      - logs:/work/logs
+    environment:
+      HOST_PROC: /rootfs/proc
+      HOST_SYS: /rootfs/sys
+      HOST_ETC: /rootfs/etc
+    ports:
+      - '60850:61850'
+#    networks:
+#      - influxdb_network-proxy
+  restarter:
+    image: docker:cli
+    container_name: cls_restarter
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      /bin/sh -c "
+      echo '=== Cls_restarter Service Initialized ===';
+      while true; do
+        for i in $$(seq 1 48); do
+          echo \"[$$(date '+%Y-%m-%d %H:%M:%S')] examining restarting flag: false -> idle\";
+          sleep 1800;
+        done;
+        echo \"[$$(date '+%Y-%m-%d %H:%M:%S')] examining restarting flag: true -> performing restart\";
+        docker restart mega_sim_testing;
+      done"
+    restart: unless-stopped
+
+  # Deactivate the network_sniffer if you DO NOT need it
+  network_sniffer:  # change IEC61850 port to match the one above; add other DER ports if not default 502
+    image: nicolaka/netshoot:latest
+    container_name: network_sniffer
+    network_mode: "service:mega_sim_testing"
+    volumes:
+      - mms_captures:/captures
+    command: >
+      tshark -i any
+             -f "tcp port 61850 or port 60850 or port 502"
+             -b filesize:300000
+             -w /captures/capture.pcap
+volumes:
+  sys:
+  proc:
+  etc:
+  der_data:
+    driver: local
+  mms_captures:
+    driver: local
+  logs:
+    driver: local

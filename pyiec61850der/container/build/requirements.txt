@@ -1,0 +1,10 @@
+influxdb-client  # influxdb-client[ciso] caused problem on raspberry pi, so just use influxdb-client
+pyyaml
+pandas
+xmltodict
+pytz
+pysunspec2
+pyserial  # This is required for pysunspec2 in Python 3.7 env
+
+# the following libs are required when using python 3.7:slim
+openpyxl

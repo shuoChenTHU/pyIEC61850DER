@@ -1,0 +1,61 @@
+DER:
+    # basic DER configuration, it is used to determine the contents in the IEC 61850 data model
+    n_pv: 1
+    n_load: 1
+    n_storage: 1
+
+
+Container:
+    # this entire section could be used to automatically build the container groups
+    container_guid: 77ca062d-2ab7-4612-a2f9-9db57c2a2e0c
+    service_name: pyiec61850der_tester  # only active if no SCL is given
+    container_name: pyiec61850der_tester  # only active if no SCL is given
+    port: 61850  # only active if no SCL is given or if the SCL does not set AP port
+    network: influxdb_network
+    time_mode: 'simulation'  # change it to 'simulation' for simulation with local profiles.
+    time_start_str: '2016-07-26 12:00:00'  # only useful for simulation with local profiles.
+    time_end_str: '2016-07-26 19:00:00'  # only useful for simulation with local profiles.
+    time_start_trigger: NaN  # a parameter reserved to set a unified trigger time (when starting like 5000 containers by hand)
+    timezone: 'Europe/Berlin'
+    
+IED:
+    tcp_port: 61850  # this port will be used in docker-compose.yaml, do not change it unless you have to
+    host_name: 127.0.0.1 
+    name_ied: 'demoVirtualCLS'  # only useful when no SCL is given (the model generator will take this string as IED name)
+    t_interval_data_update: 10  # time interval [second] for the data update in IEC 61850 server_model_orig
+    n_control_iter: 10  # control watchdog will proceeds 10 times faster than the value update monitor
+    t_monitor_reserve: 0.5  # time reserved for the monitoring, it must be smaller than t_interval_data_update
+    t_interval_archive: 300  # time interval [second] for the data export for local storage
+    t_interval_data_upload: 900  # time interval [second] for the data upload to influxdb
+
+PV1:
+    # always  check the PV parameter before starting the CLS software
+    ip: '192.168.170.99'
+    slave_id: 126
+    tcp_port: 502
+    
+STO1:
+    # under construction
+    place_holder:
+
+LOAD1:
+    # under construction
+    place_holder:
+
+PCC:
+    # under construction
+    place_holder:
+
+Interface:
+    # here are the paths of some vital configuration files, do not change them unless you have to!!
+    # levea a field empty if the associated file should be generated automatically during service intialisation
+    path_data_model_config: './model/config_IEC61850_model.xlsx' 
+    path_sunspec_mapping: './interface/interface_SunSpec.xlsx'
+    path_config_yaml: './tester/func_tests/configTester.yaml'  # the path of this file is also included in case the service requires a restart
+    
+    # the other file pathes and configs could be adjusted according to the application
+    path_scl: './tester/func_tests/IEC61850_DER_v1_miniPV.cid'
+    #path_lookup: 
+    path_lookup: './tester/func_tests/IEC61850_DA_lookup_miniPV.csv'
+    is_keep_none: True  # XXX: what was the use of this parameter? find it out....
+    is_force_overwrite: False  # determine if existing CSV lookup table shall be overwritten during the service initialisation

@@ -1,0 +1,50 @@
+version: '3.5'
+# networks:
+  # influxdb_network-proxy:
+    # external:
+      # name: influxdb_network
+services:
+  pyiec61850der_cls_tester:
+    build: 
+        context: ./
+        dockerfile: ./container/build/Dockerfile
+    image: pyiec61850der_cls_tester:1.0
+    container_name: pyiec61850der_cls_tester
+    restart: 'always'
+    volumes: 
+      - /sys:/rootfs/sys:ro
+      - /proc:/rootfs/proc:ro
+      - /etc:/rootfs/etc:ro
+      - DER_data:/work/data/archive
+      - DER_logs:/work/logs
+      - ./communication:/work/communication
+      - ./interface:/work/interface
+      - ./settings:/work/settings
+      - ./data:/work/data
+      - ./model:/work/model
+      - ./processing:/work/processing
+      - ./secret:/work/secret
+      - ./simulation:/work/simulation
+      - ./tester:/work/tester
+    environment:
+      HOST_PROC: /rootfs/proc
+      HOST_SYS: /rootfs/sys
+      HOST_ETC: /rootfs/etc
+    ports:
+      - '61850:61850'
+    # networks:
+      # - influxdb_network-proxy
+  restarter:
+    image: docker:cli
+    container_name: cls_restarter
+    volumes: [ "/var/run/docker.sock:/var/run/docker.sock" ]
+    command: [ "/bin/sh", "-c", "while true; do sleep 86400; docker restart pyiec61850der_cls_tester; done" ]
+    restart: unless-stopped  
+volumes:
+  sys:
+  proc:
+  etc:
+  DER_logs:
+    driver: local
+  DER_data:
+    driver: local

@@ -1,0 +1,1 @@
+Here some figures in the README files are stored.

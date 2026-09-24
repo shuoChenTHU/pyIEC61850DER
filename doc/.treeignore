@@ -1,0 +1,32 @@
+# ignore files when generating the project tree structure
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+# ignore all logs
+*.log
+pyiec61850der/logs/*
+pyiec61850der/container/batch/*
+pyiec61850der/data/*
+pyiec61850der/model/*
+pyiec61850der/optimization
+
+pyiec61850der/pylibiec61850/linux/*
+pyiec61850der/pylibiec61850/source/*
+pyiec61850der/pylibiec61850/windows/*
+
+pyiec61850der/secret/*
+!pyiec61850der/secret/influxdb_template.json
+!pyiec61850der/secret/influxdb.json
+!pyiec61850der/secret/README.md
+
+pyiec61850der/simulation/pandapower61850/*
+
+pyiec61850der/tester/sim_tests
+
+# ignore local python environment
+venv
+
+# ignore ssh config for git repo
+.ssh
+
