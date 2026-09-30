@@ -55,7 +55,7 @@ logger.propagate = False
 # TODO: make INFLUX_MAX_WORKERS a parameter in config.yaml or IedManager
 
 # Change max workers to a reasonable size (e.g., 10-20)
-INFLUX_MAX_WORKERS = 20
+INFLUX_MAX_WORKERS = 50
 influx_executor = ThreadPoolExecutor(max_workers=INFLUX_MAX_WORKERS, thread_name_prefix="InfluxUpload")
 
 db_ready_event = threading.Event()
@@ -99,7 +99,7 @@ def trigger_influxdb_upload(ied_server: IEC61850ServerMMS):
         return
 
     # A short timeout stops late HTTP requests from blocking execution stacks
-    UPLOAD_TIMEOUT_SEC = 5.0
+    UPLOAD_TIMEOUT_SEC = 300.0
 
     try:
         # Process tasks as they finish, capping at our total timeout cushion

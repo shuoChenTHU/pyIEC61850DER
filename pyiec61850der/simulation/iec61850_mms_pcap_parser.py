@@ -26,6 +26,7 @@ import ctypes
 import re
 import pandas as pd
 from scapy.all import rdpcap, TCP, Raw
+import os
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(f"main_logger.{__name__}")
@@ -456,19 +457,24 @@ def generate_reports(config: ParserConfig):
 
 
 if __name__ == "__main__":
-    cfg = ParserConfig(
-        filepath=r"X:\20260924_074936_mms_traffic_00001_20260924074936.pcap",
-        name_ied="virtualCLSmini",
-        ied_server_port=61850,
-        ied_client_port=None,
-        target_trg_ops="integrity",
-        merge_pac_number=5,
-        t_interval=10,
-        is_integrity=True,
-        auto_detect_all=True,
-        list_rcb=["PV1_MX_MMXU1"],
-        list_controller=["OutWSet"],
-        list_controller_type=["float"],
-        para_target=[["TotW", "TotVAr", "Hz", "PhV1", "PhV2", "PhV3"]],
-    )
-    generate_reports(cfg)
+
+    folder = r'C:\DATA\vIED_logs'
+    files = [file for file in os.listdir(folder) if '.pcap' in file or '.pcapng' in file]
+    for file in files:
+        filepath = f'{folder}\{file}'
+        cfg = ParserConfig(
+            filepath=filepath,
+            name_ied="virtualCLSmini",
+            ied_server_port=61850,
+            ied_client_port=None,
+            target_trg_ops="integrity",
+            merge_pac_number=5,
+            t_interval=10,
+            is_integrity=True,
+            auto_detect_all=True,
+            list_rcb=["PV1_MX_MMXU1"],
+            list_controller=["OutWSet"],
+            list_controller_type=["float"],
+            para_target=[["TotW", "TotVAr", "Hz", "PhV1", "PhV2", "PhV3"]],
+        )
+        generate_reports(cfg)

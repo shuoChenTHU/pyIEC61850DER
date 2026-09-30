@@ -26,8 +26,8 @@ IED:
     t_interval_data_update: 10  # time t_interval_data_update [second] for the data update in IEC 61850 server_model_orig
     N_CTRL_WD_CYCLES: 100  # number of iterative function calls of control watchdog within one data buffer update (monitor) interval
     t_monitor_reserve: 0.5  # time reserved for the monitoring, it must be smaller than t_interval_data_update
-    t_interval_archive: 300  # time t_interval_data_update [second] for the data export for local storage
-    t_interval_data_upload: 900  # time t_interval_data_update [second] for the data upload to influxdb
+    t_interval_archive: 60  # time t_interval_data_update [second] for the data export for local storage
+    t_interval_data_upload: 300  # time t_interval_data_update [second] for the data upload to influxdb
 
 PV1:
     # always  check the PV parameter before starting the CLS software
