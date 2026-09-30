@@ -13,8 +13,9 @@ Container:
     port: 61850  # only active if no SCL is given or if the SCL does not set AP port
     network: influxdb_network
     time_mode: 'simulation'  # change it to 'simulation' for simulation with local profiles.
-    time_start_str: '2016-07-26 12:00:00'  # only useful for simulation with local profiles.
-    time_end_str: '2016-07-26 19:00:00'  # only useful for simulation with local profiles.
+    # Since we are using the new time string format '%Y-%m-%dT%H:%M:%S.%f', the string below are adjusted accordingly
+    time_start_str: '2023-09-26T12:00:00.000000'  # only useful for simulation with local profiles.
+    time_end_str: '2023-09-26T18:00:00.000000'  # only useful for simulation with local profiles.
     time_start_trigger: NaN  # a parameter reserved to set a unified trigger time (when starting like 5000 containers by hand)
     timezone: 'Europe/Berlin'
     
@@ -54,8 +55,9 @@ Interface:
     path_config_yaml: './tester/func_tests/configTester.yaml'  # the path of this file is also included in case the service requires a restart
     
     # the other file pathes and configs could be adjusted according to the application
-    path_scl: './tester/func_tests/IEC61850_DER_v1_miniPV.cid'
-    #path_lookup: 
-    path_lookup: './tester/func_tests/IEC61850_DA_lookup_miniPV.csv'
+    path_scl: './model/IEC61850_dataModel/IEC61850_DER_v1_miniPV.cid'
+#    path_scl: './model/IEC61850_dataModel/IEC61850_DER_v1_mini.cid'
+    path_lookup: './settings/IEC61850_DA_lookup_miniPV.csv'
+#    path_lookup: './settings/IEC61850_DA_lookup_mini_mega_unit_test.csv'
     is_keep_none: True  # XXX: what was the use of this parameter? find it out....
     is_force_overwrite: False  # determine if existing CSV lookup table shall be overwritten during the service initialisation

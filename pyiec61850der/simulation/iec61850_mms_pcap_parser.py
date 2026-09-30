@@ -28,7 +28,7 @@ import pandas as pd
 from scapy.all import rdpcap, TCP, Raw
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 # Bitmask values for IEC 61850 / MMS Report Trigger Options (TrgOps)
 TRG_OPS_MAP = {

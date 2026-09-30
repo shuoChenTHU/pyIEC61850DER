@@ -45,7 +45,7 @@ from logging.handlers import RotatingFileHandler, QueueHandler, QueueListener
 import queue
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 @dataclass()
 class KwargsHandler(object):
@@ -336,7 +336,6 @@ def get_time_str_by_diff(time_str: str = None,
     """
     Input a time String and the string format, define a time difference, then get a new TimeStr by adding the
     time_diff and return that new time string.
-    TODO: move to TimeManager??
     ----------
 
     Parameters
@@ -472,11 +471,17 @@ class ColorLogFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-def rotating_logger(name_logger: str = 'unknown_logger',
-                    name_logfile: str = None,
-                    log_queue: queue.Queue = None,
-                    MAX_BYTES: int = 300 * 1000 * 1000,
-                    BACKUP_COUNT: int = 10) -> Logger:
+def rotating_logger(
+            name_logger: str = 'unknown_logger',
+            name_logfile: str = None,
+            log_queue: queue.Queue = None,
+            MAX_BYTES: int = 300 * 1000 * 1000,
+            BACKUP_COUNT: int = 10,
+            LOG_LEVEL_FH: int = logging.INFO,
+            LOG_LEVEL_SH: int = logging.DEBUG,
+
+    ) -> logging.Logger:
+
     """
     A logger function that can be repeatedly used, it creates a rotating log for a specific process.
     Each logger writes in up to BACKUP_COUNT log files, each rotation log file has MAX_BYTES. For now, these parameters
@@ -485,8 +490,8 @@ def rotating_logger(name_logger: str = 'unknown_logger',
     NOTE: DEBUG logging level may cause log overflow (e.g. the Rx:timeout debug log from influxdb), level it down to INFO.
 
     To call the loggers in all sub-modules, we can:
-        - either use for each sub-module a specific logger by creating a new instance: logger = rotating_logger(__name__)
-        - or have one centralised parent logger and use logger = logging.getLogger(__name__) to inherit from it.
+        - either use for each sub-module a specific logger by creating a new instance: logger = logging.getLogger(f"main_logger.{__name__}")
+        - or have one centralised parent logger and use logger = logging.getLogger(f"main_logger.{__name__}") to inherit from it.
 
     Currently we use the first one.
     ----------
@@ -505,55 +510,68 @@ def rotating_logger(name_logger: str = 'unknown_logger',
 
     """
 
-    # create a rotating handler
-    if not name_logfile:
-        name_logfile = name_logger
-    log_file_path = f'./logs/{name_logfile}.log'
-
-    # logging.basicConfig(stream=sys.stdout, filemode='a')
-    logging.disable(logging.DEBUG)
-
+    # 1. Retrieve the logger instance
     logger = logging.getLogger(name_logger)
-    logger.setLevel(logging.DEBUG)
 
-    if not hasattr(logger, "logged_errors"):
+    # Prevent duplicate handlers if the function is called multiple times for the same logger name
+    if logger.hasHandlers():
+        return logger
+
+    # 2. Main logger level must be set to the LOWEST threshold
+    min_level = min(LOG_LEVEL_FH, LOG_LEVEL_SH)
+
+    # 2. Lower logger.level if it's currently more restrictive than min_level
+    if logger.level == logging.NOTSET or logger.level > min_level:
+        logger.setLevel(min_level)
+
+    # 3. Custom error tracking method
+    if not hasattr(logger, 'logged_errors'):
         logger.logged_errors = set()
 
         def log_new_error(self, err, msg: str | None = None):
             key = (type(err), str(err))
-            if key not in logger.logged_errors:
-                logger.logged_errors.add(key)
-                logger.exception(err)
+            if key not in self.logged_errors:
+                self.logged_errors.add(key)
+                self.exception(err)
                 if msg is not None:
-                    logger.exception(msg)
+                    self.exception(msg)
 
         logger.log_new_error = types.MethodType(log_new_error, logger)
 
-    fh = RotatingFileHandler(log_file_path, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT)
-    fh.setLevel(logging.INFO)
-    formatter = logging.Formatter(
-        '%(asctime)s - %(process)d - (%(thread)d-%(threadName)-9s) - %(name)s - %(levelname)s - %(message)s')
-    fh.setFormatter(formatter)
+    # 4. File Handler -> Only logs INFO, WARNING, ERROR, CRITICAL
+    if not name_logfile:
+        name_logfile = name_logger
+    log_file_path = f'./logs/{name_logfile}.log'
 
+    fh = RotatingFileHandler(
+        log_file_path, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT
+    )
+    fh.setLevel(LOG_LEVEL_FH)  # <--- File only writes INFO and higher
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(process)d - (%(thread)d-%(threadName)-9s) - %(name)s -'
+        ' %(levelname)s - %(message)s'
+    )
+    fh.setFormatter(file_formatter)
+
+    # 5. Stream (Console) Handler -> Logs DEBUG and higher
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setLevel(LOG_LEVEL_SH)  # <--- Console presents DEBUG messages
+    sh_formatter = ColorLogFormatter()  # Assumes ColorLogFormatter exists in your codebase
+    sh.setFormatter(sh_formatter)
+
+    # 6. Queue handling or direct handler attachment
     if log_queue is not None:
         # Main app logger writes non-blockingly to queue
         queue_handler = QueueHandler(log_queue)
         logger.addHandler(queue_handler)
-        # Background thread handles slow disk/file writes
-        listener = QueueListener(log_queue, fh)
-        listener.start()
-        return logger
-    else:
-        # if not using queue, just add fileHandler and streamHanlder to the logger
-        sh = logging.StreamHandler(sys.stdout)
-        sh.setLevel(logging.INFO)
-        formatter = ColorLogFormatter()
-        sh.setFormatter(formatter)
 
-        # if multiple handlers should be merged into one logger, the next two rows need to be removed.
-        # if logger.hasHandlers:
-        #     logger.handlers.clear()
+        # Listener routes messages to both file (INFO) and stream (DEBUG)
+        listener = QueueListener(log_queue, fh, sh)
+        listener.start()
+    else:
         logger.addHandler(fh)
         logger.addHandler(sh)
 
-        return logger
+    logger.propagate = False
+
+    return logger

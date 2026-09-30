@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 from settings.helper import rotating_logger
 import interface
 
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 
 """
@@ -119,9 +119,9 @@ def aggregate_pcc(ied_server: 'IEC61850ServerMMS', data_buffer: 'DataBuffer', *a
 
             if not val:
                 logger.warning(
-                    f'Value of DA {ied_server.data_buffers[idx].iec61850_do.obj_ref_map['monitor_da_mms_addr']} is None, skip it')
+                    f'Value of DA {ied_server.data_buffers[idx].iec61850_do.obj_ref_map["monitor_da_mms_addr"]} is None, skip it')
             elif not helper.is_valid_number(val):
-                logger.warning(f'Value of DA {ied_server.data_buffers[idx].iec61850_do.obj_ref_map['monitor_da_mms_addr']} is not a number, skip it')
+                logger.warning(f'Value of DA {ied_server.data_buffers[idx].iec61850_do.obj_ref_map["monitor_da_mms_addr"]} is not a number, skip it')
             elif 'PV' in df_lookup_active.loc[i, 'monitorDA']:
                 val_agg += -1 * val
             else:
@@ -144,10 +144,10 @@ def multiplication(ied_server: 'IEC61850ServerMMS', data_buffer: 'DataBuffer', *
 
         if not val:
             logger.warning(
-                f'Value of DA {ied_server.data_buffers[idx].iec61850_do.obj_ref_map['monitor_da_mms_addr']} is None, skip it')
+                f'Value of DA {ied_server.data_buffers[idx].iec61850_do.obj_ref_map["monitor_da_mms_addr"]} is None, skip it')
         elif not helper.is_valid_number(val):
             logger.warning(
-                f'Value of DA {ied_server.data_buffers[idx].iec61850_do.obj_ref_map['monitor_da_mms_addr']} is not a number, skip it')
+                f'Value of DA {ied_server.data_buffers[idx].iec61850_do.obj_ref_map["monitor_da_mms_addr"]} is not a number, skip it')
         else:
             if not first_arg:
                 first_arg = val

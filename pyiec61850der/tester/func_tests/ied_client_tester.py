@@ -253,7 +253,7 @@ def ied_client_test(ip_addr:str= "192.168.170.240", port:int =61850,
     write_objs.append({'key': f'{name_ied}{name_ld}/DGEN1.WMax.setMag.f', 'value': 5000})
     write_objs.append({'key': f'{name_ied}{name_ld}/DGEN1.VMax.setMag.f', 'value': 245})
     write_objs.append({'key': f'{name_ied}{name_ld}/DGEN1.VMin.setMag.f', 'value': 215})
-    write_objs.append({'key': f'{name_ied}{name_ld}/DGEN1.OutWSet.setMag.f', 'value': 75})
+    write_objs.append({'key': f'{name_ied}{name_ld}/DGEN1.OutWSet.setMag.f', 'value': 100})
     
     test_count = 0
     pass_count = 0
@@ -420,7 +420,7 @@ if __name__ == '__main__':
 
     print('Start the test for pyiec61850 client')
     try:
-        pass_rate = ied_client_test(ip_addr="localhost", port =61852, name_ied='virtualCLSmini', name_ld='PV1')
+        pass_rate = ied_client_test(ip_addr="localhost", port =61850, name_ied='virtualCLSmini', name_ld='PV1')
         if abs(pass_rate - 100)< 1e-5:
             is_pass = True
             print('Test of pyiec61850 client has passed.')

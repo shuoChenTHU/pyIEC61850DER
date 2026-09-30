@@ -41,7 +41,7 @@ BoolTypes = helper.StdDataType.BoolTypes
 
 
 
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 @dataclass()
 class DataBuffer(KwargsHandler):
@@ -375,13 +375,6 @@ class DataBuffer(KwargsHandler):
             logger.exception(exc)
             return 99
 
-    # def check_timeseries_trigger(self):
-    #     if (self.time_manager.ctime_unix % self.time_series.data_refresh_trigger <
-    #             self.time_manager.t_interval_data_update):
-    #         logger.info(f'Data update of the data data_active is triggered for the DA {self.id}')
-    #         init_data_buffer_timeseries(data_buffer)
-
-
     def get_current_source_value(self):
         """
         This function passes actual values of those parameters that have been controlled by IEC 61850 clients to the corresponding data_buffer instances.
@@ -426,7 +419,7 @@ class DataBuffer(KwargsHandler):
             # TODO: implement a quality handler to pass bad quality
             return None
         elif pd.isna(val):
-            logger.warning('Got nan value from the external source, no action.')
+            logger.debug('Got nan value from the external source, no action.')
             return None
         else:
             try:
@@ -535,7 +528,7 @@ class DataBuffer(KwargsHandler):
         val_new = None
 
         if not self.value_external:
-            logger.warning(f'No initial value configured for the DO {self.id}')
+            logger.debug(f'No initial value configured for the DO {self.id}')
         else:
             ext_val = self.value_external
             if self.data_source == 'disabled':

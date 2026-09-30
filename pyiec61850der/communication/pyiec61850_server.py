@@ -104,7 +104,7 @@ from communication.iec61850_dynamic_model_builder import DataModel
 from pandas import DataFrame
 
 
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 iec61850 = helper.import_libiec61850()
 
@@ -637,11 +637,11 @@ class IEC61850ServerMMS(object):
 
         ln_model_mod = copy.deepcopy(ln_template)  # this dictionary will be modified analogously and returned
         do_dumps = []
-        logger.info(f'Start build Data Objects in LN {ln_template['@id']}, DO of unsupported cdc type will be dropped, '
+        logger.info(f'Start build Data Objects in LN {ln_template["@id"]}, DO of unsupported cdc type will be dropped, '
                     'dropping a DO may cause data model inconsistency, please validate the data model afterwards!')
         for i, do_entry in enumerate(ln_template['DO']):
             # the DO type is always 2 or 3 char before the _ in @type
-            func_handler_name = f'CDC_{do_entry['@type'].split('_')[0]}_create'
+            func_handler_name = f'CDC_{do_entry["@type"].split("_")[0]}_create'
             if not hasattr(iec61850, func_handler_name):
                 # logger.warning('cdc type {} not supported by libiec61850, dropping DO {} of type {} '
                 #                'from LN Template {}'.format(typeDO, do_entry['@name'], do_entry['@type'], ln_template['@id']))
@@ -925,21 +925,21 @@ class IEC61850ServerMMS(object):
                 # calculate bit mask for trigger options
                 trigger_opt_models = rcb_model['TrgOps']
                 trigger_opts = {'@dchg': 1, '@qchg': 2, '@dupd': 4, '@period': 8, '@gi': 16}
-                flag = 0
+                flag_tri_opt = 0
                 for key, val in trigger_opts.items():
-                    flag = flag + val*bool(trigger_opt_models.get(key, False))
+                    flag_tri_opt = flag_tri_opt + val*bool(trigger_opt_models.get(key, False))
 
                 # calculate bit mask for option fields
                 opt_field_models = rcb_model['OptFields']
                 opt_fields = {'@seqNum': 1, '@timeStamp': 2, '@reasonCode': 4, '@dataSet': 8, '@dataRef': 16,
                                 '@BufOvfl': 32, '@entryID': 64, '@configRef': 128}
-                flag = 0
+                flag_opt_field = 0
                 for key, val in opt_fields.items():
-                    flag = flag + val*bool(opt_field_models.get(key, False))
+                    flag_opt_field = flag_opt_field + val*bool(opt_field_models.get(key, False))
 
                 # build Report Control Block objects
                 rcb_obj = iec61850.ReportControlBlock_create(rcb_name, parent_ln_obj, rcb_id, is_buffered, rcb_ref_ds,
-                                                   rcb_conf_rev, flag, flag,
+                                                   rcb_conf_rev, flag_tri_opt, flag_opt_field,
                                                    buffer_time, rcb_integrity)
 
         return ld_models_mod
@@ -959,8 +959,19 @@ class IEC61850ServerMMS(object):
         return iec61850_server
 
     def destroy_ied_server(self):
-        iec61850.IedServer_destroy(self.ied_server.swig_obj)
-        self.ied_server.swig_obj = None
+        """Cleanly stop and destroy libiec61850 C objects."""
+        if hasattr(self, 'ied_server_swig_obj') and self.ied_server_swig_obj is not None:
+            try:
+                # 1. Stop TCP server from accepting new connections / stop worker threads
+                iec61850.IedServer_stop(self.ied_server_swig_obj)
+
+                # 2. Free C memory allocated for the IED server instance
+                iec61850.IedServer_destroy(self.ied_server_swig_obj)
+                self.ied_server_swig_obj = None
+
+                logger.info("IEC 61850 C-Server stopped and destroyed cleanly.")
+            except Exception as e:
+                logger.error(f"Failed to destroy C-Server object: {e}")
 
     def dump_invalid_char(self, obj_level:str='LD', obj_str:str='dummy'):
         """
@@ -1003,7 +1014,7 @@ class IEC61850ServerMMS(object):
         if ln_model['@lnClass'] == 'LLN0':
             return f'{ln_model["@lnClass"]}{ln_model["@inst"]}' # although the inst should be ''
         else:
-            return f'{ln_model['@prefix']}{ln_model['@lnClass']}{ln_model['@inst']}'
+            return f'{ln_model["@prefix"]}{ln_model["@lnClass"]}{ln_model["@inst"]}'
 
     @staticmethod
     def get_ln_id(level:str, ln_model:dict) -> tuple:

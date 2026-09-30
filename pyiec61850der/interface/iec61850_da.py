@@ -8,7 +8,9 @@ from dataclasses import dataclass
 
 from settings.helper import KwargsHandler
 from settings.helper import rotating_logger
-logger = rotating_logger(__name__)
+import logging
+
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 @dataclass()
 class IEC61850DA(KwargsHandler):

@@ -21,9 +21,10 @@ from settings.helper import rotating_logger
 from settings.config import IedConfig
 from communication.pyiec61850_server import IedServer, IEC61850ServerMMS
 from interface.data_buffer import DataBuffer
+import logging
 
 iec61850 = helper.import_libiec61850()
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 # type hints
 from typing import Optional, Type, TypedDict
@@ -182,20 +183,6 @@ def update_ied_attr(ied_server:IEC61850ServerMMS, verbose:bool=False):
         else:
             if verbose:
                 logger.info(f'The monitoring is deactivated for DO {data_buffer.iec61850_do.id}, skip it.')
-
-    # FIXME: multithreading is not working particularly well here. So dump this approach.
-    # threads = []
-    # for idxBuffer, data_buffer in enumerate(ied_server.data_buffers):
-    #     if data_buffer.is_monitor:
-    #         newThread = threading.Thread(target=update_da_worker, args=(ied_server, ied_server_swig_obj, server_time_mode, data_buffer, verbose))
-    #         newThread.start()
-    #         threads.append(newThread)
-    #     else:
-    #         if verbose:
-    #             logger.info(f'The monitoring is deactivated for DO {data_buffer.DO.id}, skip it.')
-
-    # for t in threads:
-    #     t.join()
 
     logger.info('Update of data_buffer instances is completed.')
     logger.info('-------------------------------------------------------------------\n')

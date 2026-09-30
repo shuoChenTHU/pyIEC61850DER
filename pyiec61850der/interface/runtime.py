@@ -40,7 +40,7 @@ from settings.config import IedConfig
 from simulation.runtime_manager import TimeManager, IedManager
 
 iec61850 = helper.import_libiec61850()
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 
 # %% main part of the routine submodule
@@ -54,23 +54,23 @@ def display_runtime_data(ied_server:IEC61850ServerMMS):
     TODO: display the values in data_buffer and values in IED server on one line?
     """
 
-    logger.info('-------------------------------------------------------------------')
+    logger.debug('-------------------------------------------------------------------')
 
-    logger.info('Current values of the IEC 61850 DA from the source:')
-
-    for i, item in ied_server.data_buffers.items():
-        if item.is_monitor:
-            logger.info(f'{item.id}: {item.value_external}')
-    logger.info('-------------------------------------------------------------------\n')
-
-    logger.info('-------------------------------------------------------------------')
-    logger.info('Current values of the IEC 61850 DA in the IEC 61850 server:')
+    logger.debug('Current values of the IEC 61850 DA from the source:')
 
     for i, item in ied_server.data_buffers.items():
         if item.is_monitor:
-            logger.info(f'{item.id}: {item.value_iec61850}')
+            logger.debug(f'{item.id}: {item.value_external}')
+    logger.debug('-------------------------------------------------------------------\n')
 
-    logger.info('-------------------------------------------------------------------\n')
+    logger.debug('-------------------------------------------------------------------')
+    logger.debug('Current values of the IEC 61850 DA in the IEC 61850 server:')
+
+    for i, item in ied_server.data_buffers.items():
+        if item.is_monitor:
+            logger.debug(f'{item.id}: {item.value_iec61850}')
+
+    logger.debug('-------------------------------------------------------------------\n')
 
 
 def init_data_buffers(ied_config: IedConfig, ied_server:IEC61850ServerMMS, verbose:bool=True):

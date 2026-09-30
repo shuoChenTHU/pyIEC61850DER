@@ -222,7 +222,6 @@ def testInitDynamicCLS():
         1 - demoCLS.cid (A tiny CLS demo data model)
         2 - IEC61850_DER_v1.cid (A comprehensive large DER data model)
         3 - IEC61850_DER_v1_slim.cid (A slim comprehensive DER data model)
-    TODO: there should be a test CLS with some local data profile. Add it later.
     
     Attention: testers read SCL data model in the sub-folder "./tester", while the real application
     expects SCL data model to be stored in "./model/IEC61850_dataModel"

@@ -21,6 +21,7 @@ is going on.
 
 # standard built-in lib
 import os
+import sys
 import time
 import logging
 import threading
@@ -46,7 +47,8 @@ import interface
 
 iec61850 = helper.import_libiec61850()
 
-logger = helper.rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
+logger.propagate = False
 
 # Use persistent thread pool. Limits max concurrent connections to InfluxDB.
 # This prevents thousands of OS threads from bleeding out your system's resources over time.
@@ -64,7 +66,6 @@ db_ready_event.set()  # Start in 'ready' state
 =================   DEFINE THREAD WORKERS FUNCTIONS      ==============
 =======================================================================
 """
-
 
 def upload_to_influxdb(data_buffer):
     """
@@ -98,7 +99,7 @@ def trigger_influxdb_upload(ied_server: IEC61850ServerMMS):
         return
 
     # A short timeout stops late HTTP requests from blocking execution stacks
-    UPLOAD_TIMEOUT_SEC = 10.0
+    UPLOAD_TIMEOUT_SEC = 5.0
 
     try:
         # Process tasks as they finish, capping at our total timeout cushion
@@ -240,6 +241,9 @@ def periodic_thread(ied_manager: IedManager, next_tick: float) -> float:
         # Reset alignment if the iteration took significantly longer than one period interval
         next_tick = time.perf_counter()
 
+    # keeps a heartbeat to let the outer container know the state of the program
+    ied_manager.heartbeat()
+
     return next_tick
 
 
@@ -286,8 +290,6 @@ def ied_routine(ied_manager: IedManager):
     """
     Performs the main execution routine for the IEC 61850 virtual IED application.
         TODO: consider use the parameter time_start_trigger to trigger the server_routine, so that all containers start at the same time.
-        TODO: implement a method to accelerate the control watchdog in case the execution requires more time due to
-            bad communication quality
     """
 
     time_manager = ied_manager.time_manager
@@ -336,30 +338,18 @@ def init_virtual_ied_interfaces(ied_manager: IedManager):
     ied_config = ied_manager.ied_config
     ied_server = ied_manager.ied_server
 
-    # TODO: want to disable warnings, because the iec61850 server stack in libiec61850 prints these logs when reading
-    #  data via IED clients IEDExplorer
-    #  WIN32_SOCKET: connection accepted
-    #  WIN32_SOCKET: accept failed
-    #  WIN32_SOCKET: accept failed
-    #  this line below  is not working
-    # # Set the log level to warning/error or completely turn off stdout debug prints
-    # iec61850.IedServer_setLogLevel(ied_server.ied_server, iec61850.IED_LOG_LEVEL_INFO)
-    # # If it keeps printing, pass a lower level or 0 to completely disable trace logs:
-    # # iec61850.IedServer_setLogLevel(ied_server_swig_obj, 0)
-
     ied_manager.distribute_time_manager()
 
     # read influxdb secrete
-    # TODO: would it be better to let influxdb be an attr of ied_manager instead of ied_config?
-    ied_manager.influxdb.is_secret_loaded = config.read_secret(ied_config, filename='influxdb.json')
+    ied_manager.influxdb_handler.is_secret_loaded = config.read_secret(ied_config, filename='influxdb.json')
 
-    if not ied_manager.influxdb.is_secret_loaded:
+    if not ied_manager.influxdb_handler.is_secret_loaded:
         logger.warning('Loading influxdb secret config file failed, probably cannot init the influxdb interface!')
         logger.info('One could use local time-series data instead, this requires modification of the lookup table.')
         # TODO: currently no logic is inplace for switching data_source to local, implementing it if necessary
     else:
         logger.info('Influxdb configuration successfully loaded, now check the connection to db')
-        is_read_success, is_write_success = ied_manager.influxdb.init_influx_conn_obj()
+        is_read_success, is_write_success = ied_manager.influxdb_handler.init_influx_conn_obj()
 
     # sunspec interface
     interface.sunspec.init_sunspec_interface(ied_manager)
@@ -421,17 +411,43 @@ def run_virtual_ied(path_config: str) -> IedManager:
         if ied_manager.status >= 4:
             logger.warning("Destroying IED server connection...")
             ied_manager.destroy_ied_server()
+            sys.exit(1)  # Non-zero exit code indicates aborted state
 
         # 3. Handle Restart
         if ied_manager.is_restart:
-            logger.info("Executing IED server restart sequence...")
-            ied_manager.restart_ied_server(path_config)
-            init_virtual_ied_interfaces(ied_manager)
+            # Force teardown of C-level IED server object & threads
+            if hasattr(ied_manager, 'service_manager') and ied_manager.service_manager:
+                try:
+                    ied_manager.service_manager.flush_all_workers()
+                except Exception as e:
+                    logger.error(f"Error during service manager pre-restart flush: {e}")
 
-            # Reset running state so the next iteration of the while-loop can execute ied_routine
-            ied_manager.is_running = True
-            ied_manager.is_restart = False
-            ied_manager.update_status()
+            logger.info("Executing clean process exit for Docker container restart...")
+
+            # Force teardown of C-level IED server object & threads
+            try:
+                ied_manager.destroy_ied_server()
+            except Exception as e:
+                logger.error(f"Error while destroying C IED server during soft restart: {e}")
+
+            # Give TCP sockets 2 seconds to release from TIME_WAIT state
+            time.sleep(2)
+
+            # FIXME: the trigger_restarter_worker is doing fine mostly, but it leads to incomplete data upload in
+            #   influxdb. So, the restart mechanism is rolled back to the scheduled container restart by exiting the
+            #   Python program and forcing the container to restart automatically.
+
+            # # Re-initialize fresh C server & virtual interfaces
+            # ied_manager.restart_ied_server(path_config)
+            # init_virtual_ied_interfaces(ied_manager)
+            #
+            # # Reset status flags for next while-loop iteration
+            # ied_manager.is_running = True
+            # ied_manager.is_restart = False
+            # ied_manager.update_status()
+
+            # as mentioned above, just exit with code 0
+            sys.exit(0)
 
         ied_manager.routine_cycle_count += 1
 

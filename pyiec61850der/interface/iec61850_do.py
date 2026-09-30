@@ -13,8 +13,8 @@ import numpy as np
 from interface.iec61850_da import IEC61850DA
 from settings.helper import KwargsHandler
 from settings.helper import rotating_logger
-
-logger = rotating_logger(__name__)
+import logging
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 DICT_PRIMARY_DA = dict({
     'APC': {'monitor': 'mxVal.f', 'control': 'ctlVal.f'},

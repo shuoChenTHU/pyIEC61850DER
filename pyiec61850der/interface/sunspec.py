@@ -26,6 +26,7 @@ import time
 
 import settings.helper as helper
 from settings.helper import rotating_logger
+import logging
 
 from typing import TYPE_CHECKING
 
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
     from interface.data_buffer import DataBuffer
     from simulation.runtime_manager import IedManager
     from communication.pyiec61850_server import IEC61850ServerMMS
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 
 
@@ -315,7 +316,7 @@ def update_df_lookup_by_mapping(df_lookup: DataFrame,
         index = addr_to_idx_map.get(da_mms_addr, [None])[0]
 
         if index is not None:
-            logger.info(f'Successfully located DA {da_mms_addr} by sunspec mapping, enable sunspec data_source')
+            logger.debug(f'Successfully located DA {da_mms_addr} by sunspec mapping, enable sunspec data_source')
             df.at[index, 'fieldbus_conn_obj'] = conn_obj  # object saved in the DataFrame will be of the type Series
             df.at[index, 'data_source'] = 'sunspec'
             df.at[index, 'is_monitor'] = True
@@ -700,11 +701,11 @@ def read_value_from_point(conn_obj: SunSpecModbusClientDeviceTCP,
             model_instance.read()
 
         para_val = getattr(model_instance, parameter).cvalue
-        logger.info(f'Successfully fetched sunspec parameter {model_id} - {parameter} with value {para_val}')
+        logger.debug(f'Successfully fetched sunspec parameter {model_id} - {parameter} with value {para_val}')
         return para_val
     except ModbusClientError:
         logger.exception(f'Sunspec server for {parameter} unavailable, try to reconnect')
-        logger.info(f'New reading for will be performed in the next iteration')
+        logger.exception(f'New reading for will be performed in the next iteration')
         is_connected = reconnect_sunspec_server(conn_obj)
     except AttributeError:
         logger.exception(f'Reading sunspec parameter {parameter} caused AttributeError, skip this parameter')
@@ -777,30 +778,6 @@ def write_value_to_point(para_obj: SunSpecModbusClientPoint, value: any) -> bool
         return False
     else:
         return True
-
-# def write_numeric_value_to_point(conn_obj: SunSpecModbusClientDeviceTCP,
-#                                  para_obj: SunSpecModbusClientPoint,
-#                                  value: float | int, tol:float = 1e-5) -> bool:
-#
-#
-#     para_obj.cvalue = value
-#     lock = getattr(conn_obj, 'modbus_lock', None)
-#     try:
-#         # FIX: Ensure a background read doesn't corrupt this socket transaction
-#         with lock:
-#             para_obj.write()
-#         return True
-#     except Exception as e:
-#         logger.error(f"Unexpected error when writing action to parameter...")
-#         raise e
-#
-#     para_obj.write()
-#     para_obj.read()
-#     if abs(para_obj.cvalue - value) < tol:
-#         logger.info('Success, passing the control value did not throw error, check whether the control was performed')
-#         return True
-#     else:
-#         raise ValueError('Passing the control value did not throw error, but the value was not taken')
 
 
 def write_numeric_value_to_point(conn_obj: SunSpecModbusClientDeviceTCP,

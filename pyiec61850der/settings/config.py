@@ -22,8 +22,12 @@ import threading
 
 import settings.helper as helper
 from settings.helper import rotating_logger
+import logging
 
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
+
+# TODO: all the classes used as config, came from a legacy implementation. The attrs and their usage will be
+#  synchronised after applying the pydantic lib.
 
 
 class IedConfig(object):
@@ -42,15 +46,12 @@ class IedConfig(object):
     update the configuration using the YAML config file, because the IEC 61850 data 
     model generator also relies on this YAML configuration when adjusting the data model topology.
 
-    TODO: move all methods to a new class IedManager
-
     FIXME: here we have some legacy issue due to the outdated implementation of the configuration. Attrs of this
      class should only be used to READ, UPDATE and STORE the configuration, for other purpose the config parameters
      must be passed to other classes (e.g. TimeManager, IedManager, etc.).
 
     TODO: after a new implementation concept for the configurator is defined, review all config parameters incl.
      their usage in the runtime services, pass value accordingly to other classes and remove duplicated value.
-    
     """
 
     def __init__(self):
@@ -67,7 +68,7 @@ class IedConfig(object):
         self.sto = STO()
         self.pcc = PCC()
         self.interface = Interface()
-        self.influxdb = None  # only a placeholder, will later be assigned by ied_manager.influxdb
+        self.influxdb = None  # only a placeholder, will later be assigned by ied_manager.influxdb_handler
 
     def update_dict_attr(self, attr_key: str, attr_obj: dict, is_add_new_attr:bool=True):
         parent_obj = getattr(self, attr_key, None)
@@ -202,7 +203,6 @@ class IED:
     Dummy settings of the virtual vIED device.
     Entries will be overwritten if a local config yaml file is available.
     TODO: quite many time related attributes are duplicated with Time Synchroniser, consider merge them
-    TODO: rename the class to vIED later
     """
 
     # server settings and stats
@@ -220,13 +220,11 @@ class IED:
 
 class Container:
     """
-    TODO: add more details in docstring
-
     This class is essential, it is the interface between runtime_manager and databuffers. In particular,
     its instances share the same time related attr as the attr ied_manger.time_manager
 
     FIXME: quite many time related attributes are legacy from the prototype, they are redundant to attrs of the
-    class TimeManager. Must unify the usage of these attrs and remove redundancy.
+      class TimeManager. Must unify the usage of these attrs and remove redundancy.
     """
 
     # container setting
@@ -284,7 +282,6 @@ class Interface:
     # dictionary and pandas DataFrame objects
     df_lookup: pd.DataFrame = None  # initialisation will be performed by interface.sunspec
     df_sunspec_mapping: pd.DataFrame = None  # initialisation will be performed by communication._swig_obj
-    # TODO: currently only one sunspec device is active, it's okay to use list, convert it to dict later
     active_sunspec_mappings: list = []  # store sunspec mapping dataframes in runtime, can handle multi devices
     config_yaml: dict = None  # initialisation will be performed by settings.config.update_config()
 

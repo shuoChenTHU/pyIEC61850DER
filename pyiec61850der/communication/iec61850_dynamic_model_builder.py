@@ -9,8 +9,9 @@ from dataclasses import dataclass, field
 from typing import Optional, Type, TypedDict, Any, TYPE_CHECKING
 
 from settings.helper import rotating_logger, import_libiec61850
+import logging
 
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 
 @dataclass()

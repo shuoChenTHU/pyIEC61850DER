@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from interface.data_buffer import DataBuffer
     from interface.time_series import TimeSeries
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 FloatTypes = helper.StdDataType.FloatTypes
 IntTypes = helper.StdDataType.IntTypes
@@ -48,84 +48,6 @@ def get_cvalue(data_buffer: 'DataBuffer') -> helper.StdDataType.AllTypes:
 =================   End Essential routine functions =================
 =======================================================================
 """
-
-# TODO: since we are asking for daily time series any via refresh_daily_time_series(), get_time_series becomes
-#  redundant, check if commenting it out has any impact and then remove the code.
-# def get_time_series(startTimeStrUTC=None, instProfile=None, timeRange=86400, interval=60, **kwargs):
-#     """
-#     This method will get the PV/load profile from local csv file if called.
-#     The profile will be queried on a daily basis.
-#
-#     In the function name, we use the word get instead of load to avoid confusion
-#     with electrical load profile.
-#
-#     Usage:
-#         newProfile = interface.local.get_dataframe_from_influxdb(startTimeStrUTC, instProfile, timeRange=86400, t_interval_data_update=60)
-#
-#     Input:
-#         - startTimeStrUTC: UTC time string of the start time, which can be read from one instance of class IedConfig
-#         - instProfile: the instance of the profile that contains all available data (created by get_dataframe_from_local_file)
-#         - timeRange: this defines the time window (unit is second) of the desired profile, usually 3600, 7200 or 86400
-#         - t_interval_data_update: time resolution (unit is second) of the profile. It could be automatically calculated, here we use it to detect data gap
-#         - **kwargs: place_holder for other supplementary keywords argument
-#
-#     Output;
-#         - newProfile: return a new profile including the data_active. The profile instance needs to be updated
-#             accordingly.
-#
-#     """
-#
-#     logger.info('=================   Begin update profile   =================')
-#     logger.info(f'Start profile query, start time stamp {startTimeStrUTC}, time range {timeRange} seconds')
-#
-#     endTimeStrUTC = helper.time_unix_to_str(helper.time_utc_str_to_unix(startTimeStrUTC) + timeRange)
-#
-#     if instProfile.data_active.loc[0, '_time'][0:10] == startTimeStrUTC[0:10]:
-#         startIdx = 0  # this deals with the case in which the simulation begins in the middle of a day
-#     else:
-#         startIdx = instProfile.data_active.index[instProfile.data_active['_time'] == startTimeStrUTC].tolist()
-#         if startIdx == []:
-#             logger.warning('Required start time not in the dataframe, can not query new profile')
-#             startIdx = None
-#         else:
-#             startIdx = startIdx[0]
-#
-#     endIdx = instProfile.data_active.index[instProfile.data_active['_time'] == endTimeStrUTC].tolist()
-#
-#     if endIdx == []:
-#         logger.warning('Required start time not in the dataframe, can not query new profile')
-#         endIdx = None
-#     else:
-#         endIdx = endIdx[0]
-#
-#     if startIdx is None and endIdx is None:
-#         dfNew = instProfile.data_active[-1:0]  # this returns a empty dataframe with only column keys
-#     else:
-#         dfNew = instProfile.data_active[startIdx:endIdx]
-#
-#     nValRef = timeRange / interval
-#     if  len(dfNew) == 0:
-#         logger.warning('No data found for this day, the simulation will use profile of the previous day')
-#     elif len(dfNew) > nValRef:
-#         logger.warning('Found some duplicated data, but no problem, we move on')
-#     elif len(dfNew) < nValRef:
-#         logger.warning(f'Found data gap, {nValRef - len(dfNew)} data points are missing.')
-#         logger.warning('Not a problem, the server will use the previous value in the simulation')
-#     else:
-#         logger.info('Data query was successfull, profile loaded')
-#
-#     logger.info('=================   End update profile   =================\n')
-#
-#     nVal = len(dfNew)
-#     newProfile = TimeSeries()
-#     newProfile.guid = instProfile.guid
-#     newProfile.provider = instProfile.provider
-#     newProfile.data_active = dfNew
-#     newProfile.data_count = nVal
-#     newProfile.timeWindow = (dfNew.loc[0, '_time'], dfNew.loc[nVal-1, '_time'])
-#     newProfile.timeWindowUnix = (dfNew.loc[0, '_timeUnix'], dfNew.loc[nVal-1, '_timeUnix'])
-#
-#     return newProfile
 
 # TODO: evaluate whether it is helpful to init the entire profile, maybe it is better
 #   to recursively load local profiles in each iteration

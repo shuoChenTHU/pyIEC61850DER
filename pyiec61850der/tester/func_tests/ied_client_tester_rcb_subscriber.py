@@ -1,3 +1,38 @@
+# -*- coding: utf-8 -*-
+"""
+A test script for the testing of subscribing MMS RCB reports
+
+libiec61850 client error code:
+ref: https://support.mz-automation.de/doc/libiec61850/net/latest/namespace_i_e_c61850_1_1_client.html
+      IedClientError.IED_ERROR_OK = 0
+      IedClientError.IED_ERROR_NOT_CONNECTED = 1
+      IedClientError.IED_ERROR_ALREADY_CONNECTED = 2
+      IedClientError.IED_ERROR_CONNECTION_LOST = 3
+      IedClientError.IED_ERROR_SERVICE_NOT_SUPPORTED = 4
+      IedClientError.IED_ERROR_CONNECTION_REJECTED = 5
+      IedClientError.IED_ERROR_USER_PROVIDED_INVALID_ARGUMENT = 10
+      IedClientError.IED_ERROR_ENABLE_REPORT_FAILED_DATASET_MISMATCH = 11
+      IedClientError.IED_ERROR_OBJECT_REFERENCE_INVALID = 12
+      IedClientError.IED_ERROR_UNEXPECTED_VALUE_RECEIVED = 13
+      IedClientError.IED_ERROR_TIMEOUT = 20
+      IedClientError.IED_ERROR_ACCESS_DENIED = 21
+      IedClientError.IED_ERROR_OBJECT_DOES_NOT_EXIST = 22
+      IedClientError.IED_ERROR_OBJECT_EXISTS = 23
+      IedClientError.IED_ERROR_OBJECT_ACCESS_UNSUPPORTED = 24
+      IedClientError.IED_ERROR_TYPE_INCONSISTENT = 25,
+      IedClientError.IED_ERROR_TEMPORARILY_UNAVAILABLE = 26
+      IedClientError.IED_ERROR_OBJECT_UNDEFINED = 27
+      IedClientError.IED_ERROR_INVALID_ADDRESS = 28
+      IedClientError.IED_ERROR_HARDWARE_FAULT = 29
+      IedClientError.IED_ERROR_TYPE_UNSUPPORTED = 30
+      IedClientError.IED_ERROR_OBJECT_ATTRIBUTE_INCONSISTENT = 31
+      IedClientError.IED_ERROR_OBJECT_VALUE_INVALID = 32
+      IedClientError.IED_ERROR_OBJECT_INVALIDATED = 33
+      IedClientError.IED_ERROR_MALFORMED_MESSAGE = 34
+      IedClientError.IED_ERROR_SERVICE_NOT_IMPLEMENTED = 98
+      IED_ERROR_UNKNOWN = 99
+"""
+
 import time
 import sys
 import os
@@ -59,25 +94,33 @@ def parse_and_print_dataset_with_names(dataset_values, data_set_directory):
         element_name = get_string_from_node_data(raw_void_ptr)
 
         if iec61850.MmsValue_getType(element) == iec61850.MMS_STRUCTURE:
+            struct_size = iec61850.MmsValue_getArraySize(element)
             try:
-                # Drill down directly into standard structure layout to read mag.f, q, and t
-                mag_struct = iec61850.MmsValue_getElement(element, 0)
-                float_element = iec61850.MmsValue_getElement(mag_struct, 0)
-                mag_f = iec61850.MmsValue_toFloat(float_element)
+                if struct_size == 1:
+                    setmag_struct = iec61850.MmsValue_getElement(element, 0)
+                    float_element = iec61850.MmsValue_getElement(setmag_struct, 0)
+                    setmag_f = iec61850.MmsValue_toFloat(float_element)
+                    print(f"  [{i}] DO: {do_name:<12} | DA: {da_name:<8} -> Value: {setmag_f:<8}")
+                else:
 
-                q_element = iec61850.MmsValue_getElement(element, 1)
-                q_val = iec61850.MmsValue_getBitStringAsInteger(q_element)
+                    # Drill down directly into standard structure layout to read mag.f, q, and t
+                    mag_struct = iec61850.MmsValue_getElement(element, 0)
+                    float_element = iec61850.MmsValue_getElement(mag_struct, 0)
+                    mag_f = iec61850.MmsValue_toFloat(float_element)
 
-                t_element = iec61850.MmsValue_getElement(element, 2)
-                t_ms = iec61850.MmsValue_getUtcTimeInMs(t_element)
+                    q_element = iec61850.MmsValue_getElement(element, 1)
+                    q_val = iec61850.MmsValue_getBitStringAsInteger(q_element)
 
-                # Split strings to extract clean DO and DA handles (e.g. splitting by '$')
-                parts = element_name.split('.')
-                do_name = parts[1] if len(parts) > 1 else "Unknown_DO"
-                da_name = ".".join(parts[2:]) if len(parts) > 2 else "Unknown_DA"
+                    t_element = iec61850.MmsValue_getElement(element, 2)
+                    t_ms = iec61850.MmsValue_getUtcTimeInMs(t_element)
 
-                print(
-                    f"  [{i}] DO: {do_name:<12} | DA: {da_name:<8} -> Value: {mag_f:<8} | Quality: {hex(q_val):<5} | Time: {t_ms} ms")
+                    # Split strings to extract clean DO and DA handles (e.g. splitting by '$')
+                    parts = element_name.split('.')
+                    do_name = parts[1] if len(parts) > 1 else "Unknown_DO"
+                    da_name = ".".join(parts[2:]) if len(parts) > 2 else "Unknown_DA"
+
+                    print(
+                        f"  [{i}] DO: {do_name:<12} | DA: {da_name:<8} -> Value: {mag_f:<8} | Quality: {hex(q_val):<5} | Time: {t_ms} ms")
             except Exception as ex:
                 print(f"  [{i}] Error parsing standard layout path: {element_name} -> {ex}")
         else:
@@ -102,11 +145,12 @@ def process_report_payload(connection, dataset_ref, data_set_directory):
 
 
 def main():
-    hostname = "192.168.170.83"
-    tcpPort = 60850
+    hostname = "127.0.0.1"
+    tcpPort = 61850
     INTG_PERIOD = 5000  # ms
     T_WAIT = 30 #s
     rcb_ref = 'virtualCLSminiPV1/LLN0$RP$PV1_MX_MMXU1'
+    # rcb_ref = 'demoVirtualCLS_demoProsumerXY/PV1_MMXU0$RP$demoProsumerXY_RP_PV1_MMXU0'
 
     connection = iec61850.IedConnection_create()
 

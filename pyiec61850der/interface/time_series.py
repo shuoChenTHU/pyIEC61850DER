@@ -13,8 +13,8 @@ from influxdb_client import InfluxDBClient
 
 from settings.helper import rotating_logger
 from settings.helper import KwargsHandler, StdDataType
-
-logger = rotating_logger(__name__)
+import logging
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 @dataclass()
 class TimeSeries(KwargsHandler):

@@ -3,7 +3,7 @@ import logging
 import sunspec2.modbus.client as client
 import random
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 
 def poll_wmaxlimpct_10ms(

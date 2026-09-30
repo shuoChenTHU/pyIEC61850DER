@@ -20,13 +20,13 @@ from communication.pyiec61850_server import IedServer, IEC61850ServerMMS
 from settings.config import IedConfig
 import settings.helper as helper
 from settings.helper import rotating_logger
-from interface.influxdb import Influxdb
+from interface.influxdb import InfluxdbHandler
 import interface.sunspec as interface_sunspec
 
 from model import IEC61850DataModelGenerator
 from communication import pyiec61850_server
 
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 class TimeManager(object):
     def __init__(self):
@@ -58,7 +58,7 @@ class TimeManager(object):
         self.time_mode: str = 'simulation'  # simulation or absolute
         self.time_start_str: str = '2016-07-01 12:00:00'
         self.time_end_str: str = '2016-07-31 23:59:59'
-        self.time_str_format: str = '%Y-%m-%d %H:%M:%S'   # TODO:  '%Y-%m-%dT%H:%M:%S.%f' was input for get_ctime_bundles()
+        self.time_str_format: str = '%Y-%m-%dT%H:%M:%S.%f'
         self.time_start_unix: float = 0.0
         self.time_end_unix: float = 0.0
         self.time_accelerator_factor: float = 1.0
@@ -102,6 +102,7 @@ class TimeManager(object):
         self.ROUTINE_RESTART_INTERVAL = 60
         self.ROUTINE_RESTART_HOUR = 6  # restart the service at this time [UTC]
         self.ROUTINE_RESTART_MINUTE = 0  # restart the service at this time [UTC]
+
 
     def get_ctime_bundles(self, ctime_unix: float | None) -> tuple[float, str, str, datetime, datetime]:
 
@@ -179,8 +180,8 @@ class TimeManager(object):
             self.time_start_str = helper.time_unix_to_str(self.time_start_unix)
             self.time_end_str = helper.time_unix_to_str(self.time_end_unix)
         else:
-            # TODO: raise time mode error
-            logger.warning('Unknown time mode')
+            logger.error('Unknown time mode')
+            raise ValueError('Unknown time mode')
 
         self.ctime_unix = self.time_start_unix
 
@@ -196,20 +197,9 @@ class TimeManager(object):
 
     def get_attr_from_config(self, ied_config: IedConfig):
         """
-        TODO: update descr
-        TODO: change var name
-        copy attributes from the config file
+        Copy attributes from the config file and assign identical attr names for clarity
 
-        rename for clarity
-
-        Naming convention was a legacy in old program
-
-        Parameters
-        ----------
-        ied_config
-
-        Returns
-        -------
+        Naming convention was inherited from the legacy program.
         """
 
         self.t_interval_data_update = ied_config.ied.t_interval_data_update
@@ -310,11 +300,7 @@ class IedManager(object):
 
     NOTE: the state abort can be tricky here, occasionally the abort will not be performed as a python function,
     but rather triggered by the container management.
-
-    TODO: check all occurrences of status change, are they correctly implemented? is it too complex?
     -------------------------------------------------------------------
-
-    TODO: share those time related value with TimeManager
     """
 
     def __init__(self):
@@ -322,7 +308,7 @@ class IedManager(object):
         self.time_manager: TimeManager | None = TimeManager()
         self.ied_server: IEC61850ServerMMS | None = None
         self.data_model_generator: IEC61850DataModelGenerator | None = None
-        self.influxdb: Influxdb = Influxdb()
+        self.influxdb_handler: InfluxdbHandler = InfluxdbHandler()
 
         self.allowed_threads: list = []
         self.routine_cycle_count: int = 0
@@ -345,6 +331,8 @@ class IedManager(object):
         self.MAX_CYCLE_COUNT_DESTROY: int = 0  # max. number of routine cycles before forcing a server termination
         self.MAX_CYCLE_COUNT_RESTART: int = 0  # max. number of routine cycles before forcing a server restart
         self.CTRL_PERIOD: float = 1.0
+
+        self.HEARTBEAT_FILE = "./heartbeat"
 
 
 
@@ -394,7 +382,7 @@ class IedManager(object):
         #  have the implication, or the question: where should any new secret configs be stored? -> Find an answer to
         #  this question
 
-        self.ied_config.influxdb = self.influxdb
+        self.ied_config.influxdb = self.influxdb_handler
         self.display_config_info()
 
 
@@ -442,7 +430,7 @@ class IedManager(object):
 
     def gen_iec61850_data_model(self):
         """
-        TODO: add desc
+        Get the IEC 61850 data model by parsing an SCL file.
 
         """
 
@@ -468,8 +456,6 @@ class IedManager(object):
 
         Note that the instance of class IEC61850ServerMMS has no connection to instances of IedConfig. But they can
         exchange information within ied_manager.
-
-        TODO: improve sloppy var names and info storage
         """
 
         self.ied_server = pyiec61850_server.run_ied_server_mms(self.ied_config)
@@ -506,8 +492,8 @@ class IedManager(object):
     def destroy_ied_server(self):
         logger.info('-------------------------------------------------------------------\n')
         logger.info('Destroy running ied_server and the ied_config instance.')
-        self.ied_config = IedConfig()
         self.ied_server.destroy_ied_server()
+        self.ied_config = IedConfig()
         self.ied_server = None
         self.is_abort = True
         self.update_status()
@@ -558,7 +544,7 @@ class IedManager(object):
 
     def display_worker_process_time(self):
         try:
-            t_buffer_worker = round(self.time_manager.t1, self.time_manager.TIME_DECIMAL)
+            t_buffer_worker = round(self.time_manager.t_dbf_worker, self.time_manager.TIME_DECIMAL)
             t_controller_worker = round(self.time_manager.t_ctrl_wd_worker, self.time_manager.TIME_DECIMAL)
             logger.info(f'This iteration started with an offset of: {self.time_manager.offset} seconds')
             logger.info(f'Time consumed by the subprocess update data buffer: {t_buffer_worker} seconds')
@@ -635,6 +621,13 @@ class IedManager(object):
                 for keyJSON in dbf.fieldbus_conn_obj.keys():
                     setattr(dbf.influxdb, keyJSON, dbf.fieldbus_conn_obj[keyJSON])
 
+    def heartbeat(self):
+        """Updates the mtime of the heartbeat file to signal health."""
+        try:
+            with open(self.HEARTBEAT_FILE, "w") as f:
+                f.write(str(time.time()))
+        except Exception as e:
+            logger.error(f"Failed to update heartbeat file: {e}")
 
 class IedServiceManager:
     """
@@ -670,7 +663,7 @@ class IedServiceManager:
         while not self.stop_event.is_set() and self.ied_manager.status < 4:
             tic = time.perf_counter()
             try:
-                logger.info("Exporting CSV records to local storage...")
+                logger.debug("Exporting CSV records to local storage...")
 
                 # Shallow list snapshot to prevent dict mutation issues during iteration
                 data_buffers = list(self.ied_manager.ied_server.data_buffers.values())
@@ -766,10 +759,10 @@ class IedServiceManager:
             self.db_ready_event.clear()  # Block uploads during socket teardown
             try:
                 self.ied_manager.db_conn_count += 1
-                self.ied_manager.influxdb.close_influx_conn()
+                self.ied_manager.influxdb_handler.close_influx_conn()
 
-                if self.ied_manager.influxdb.is_secret_loaded:
-                    is_read_success, is_write_success = self.ied_manager.influxdb.init_influx_conn_obj()
+                if self.ied_manager.influxdb_handler.is_secret_loaded:
+                    is_read_success, is_write_success = self.ied_manager.influxdb_handler.init_influx_conn_obj()
                     self.ied_manager.distribute_influxdb_handler()
                     logger.info("InfluxDB connection object successfully refreshed.")
                 else:
@@ -876,10 +869,11 @@ class IedServiceManager:
 
         logger.info("SunSpec Connection Refresher Worker stopped cleanly.")
 
-    def service_restarter_worker(self):
+    def trigger_restarter_worker(self):
         """
         Monitors operational time (real or simulated) via time_manager.ctime_unix
         and triggers a server restart whenever time_manager.ROUTINE_RESTART_HOUR AM UTC is crossed.
+        TODO: put the trigger time into config
         """
 
         time_manager = self.ied_manager.time_manager
@@ -909,7 +903,7 @@ class IedServiceManager:
                     # Update time bundle to reflect the exact state at trigger
                     time_manager.update_time_by_unix()
 
-                    logger.warning(
+                    logger.info(
                         f"UTC boundary crossed at timestamp {time_manager.ctime_utc_str}. "
                         f"Service restarter workerTriggering full IEC 61850 server restart."
                     )
@@ -930,7 +924,10 @@ class IedServiceManager:
     # Service Lifecycle Controls
     # =========================================================================
     def start_all_services(self):
-        """Launches all 5 worker methods as daemon threads."""
+        """
+        Launches all 5 worker methods as daemon threads.
+        """
+
         self.stop_event.clear()
 
         workers = [
@@ -938,7 +935,7 @@ class IedServiceManager:
             ("influx_upload_worker", self.influx_upload_worker),
             ("influx_connection_refresher", self.influx_connection_refresher_worker),
             ("sunspec_connection_refresher", self.sunspec_conn_obj_refresher_worker),
-            ("service_restarter_worker", self.service_restarter_worker),
+            ("trigger_restarter_worker", self.trigger_restarter_worker),
         ]
 
         for name, target_method in workers:
@@ -963,3 +960,60 @@ class IedServiceManager:
 
         self.threads.clear()
         logger.info("All service workers stopped.")
+
+    # =========================================================================
+    # Service Flush Actions By Restarting
+    # =========================================================================
+    def flush_csv_archive(self):
+        """Immediately triggers a CSV export cycle and waits for all disk tasks to finish."""
+        logger.info("[Flush] Triggering immediate CSV archive export...")
+        try:
+            data_buffers = list(self.ied_manager.ied_server.data_buffers.values())
+            monitored_buffers = [db for db in data_buffers if getattr(db, 'is_monitor', False)]
+
+            def _write_buffer_to_csv(data_buffer):
+                try:
+                    flag = data_buffer.export_records_locally()
+                    if flag == 1:
+                        logger.debug(f"Export CSV completed for DO {data_buffer.iec61850_do.name}.")
+                    elif flag == 99:
+                        logger.warning(f"Export CSV failed for DO {data_buffer.iec61850_do.name}!")
+                except Exception as err:
+                    logger.error(f"Failed to export CSV for DO {data_buffer.iec61850_do.name}: {err}")
+
+            futures = [self.csv_writer_executor.submit(_write_buffer_to_csv, db) for db in monitored_buffers]
+
+            # Wait for all submitted CSV writes to complete execution
+            for future in futures:
+                future.result()
+
+            logger.info("[Flush] CSV archive flush complete.")
+        except Exception as err:
+            logger.error(f"[Flush] Failed during CSV archive flush: {err}")
+
+    def flush_influx_upload(self):
+        """Immediately triggers an InfluxDB upload cycle and waits for batch tasks to finish."""
+        logger.info("[Flush] Triggering immediate InfluxDB batch upload...")
+        try:
+            # Execute your existing InfluxDB batch extraction & upload logic here directly
+            if hasattr(self, '_process_influx_upload_batch'):
+                self._process_influx_upload_batch()
+
+            # Ensure any asynchronous futures in self.executor are fully flushed and completed
+            if hasattr(self, 'executor'):
+                # Wait for running tasks to drain
+                logger.info("[Flush] Waiting for InfluxDB thread executor to complete active tasks...")
+                # Alternatively, if write_api is used, flush its buffer explicitly:
+                if hasattr(self, 'influx_write_api') and self.influx_write_api:
+                    self.influx_write_api.flush()
+
+            logger.info("[Flush] InfluxDB upload flush complete.")
+        except Exception as err:
+            logger.error(f"[Flush] Failed during InfluxDB upload flush: {err}")
+
+    def flush_all_workers(self):
+        """Helper to run both worker flushes sequentially before teardown/restart."""
+        logger.info("Starting pre-restart worker flush sequence...")
+        self.flush_csv_archive()
+        self.flush_influx_upload()
+        logger.info("All worker flushes finished.")

@@ -13,15 +13,16 @@ import pandas as pd
 from settings import helper
 
 from typing import TYPE_CHECKING
-
+import logging
 if TYPE_CHECKING:
     from interface.data_buffer import DataBuffer
     from interface.time_series import TimeSeries
 from settings.helper import rotating_logger
-logger = rotating_logger(__name__)
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 
 STANDARD_INFLUXDB_TIME_FORMAT: str = '%Y-%m-%dT%H:%M:%SZ'
+INFLUXDB_UPLOAD_TIME_FORMAT: str = '%Y-%m-%dT%H:%M:%S.%fZ'
 
 """
 =======================================================================
@@ -38,7 +39,7 @@ def get_cvalue(data_buffer: 'DataBuffer') -> helper.StdDataType.AllTypes:
 
 
 
-class Influxdb:
+class InfluxdbHandler:
     measurement_read: str = 'unknown'  # string of the _measurement for reading from influxdb
     measurement_write: str = 'unknown'  # string of the _measurement for writing to influxdb
     # tags = {}
@@ -565,39 +566,94 @@ def prep_records(data_buffer: 'DataBuffer', df: DataFrame = None, **kwargs) -> l
     influx_records: a list containing all influx records for the next write handler operation.
     """
 
-    # Use provided DataFrame snapshot or fall back to data_buffer's current upload attribute
+    # 1. Capture source DataFrame
     source_df = df if df is not None else data_buffer.records.data_for_upload
 
-    if source_df.empty:
+    if source_df is None or source_df.empty:
+        logger.debug(
+            f"[prep_records] DO '{getattr(data_buffer, 'id', 'unknown')}': source_df is empty or None. Returning 0 records.")
         return []
 
-    influx_records = []
-    # NOTE: reset index, otherwise there might be an issue with multiple 0 indices
-    data: DataFrame = source_df.reset_index(drop=True)
-    assert isinstance(data, DataFrame)
+    initial_row_count = len(source_df)
+    logger.debug(
+        f"[prep_records] DO '{getattr(data_buffer, 'id', 'unknown')}': Input DataFrame row count = {initial_row_count}")
 
-    # FIXME: convert all numbers to float to avoid upload type mismatch errors in InfluxDB
-    num_cols = data.select_dtypes(include="number").columns
-    if not num_cols.empty:
-        data[num_cols] = data[num_cols].astype(float)
+    # Log raw sample timestamps from column 't' to inspect decimal vs integer format
+    if 't' in source_df.columns:
+        sample_raw_t = source_df['t'].head(5).tolist()
+        sample_raw_v = source_df['value_iec61850'].head(5).tolist()
+        logger.debug(f"[prep_records] First 5 raw 't' values: {sample_raw_t}")
+        logger.debug(f"[prep_records] First 5 raw IEC61850 DA values: {sample_raw_v}")
+    else:
+        logger.warning("[prep_records] Column 't' not found in source_df!")
+
+    # 2. Reset index & convert numeric columns
+    data: DataFrame = source_df.reset_index(drop=True)
+
+    # 1. Drop rows where timestamp 't' is missing or invalid
+    data = data.dropna(subset=['t'])
+    if data.empty:
+        return []
+
+    # 2. Handle numeric columns: convert to float and replace NaN with None/0 or drop
+    num_cols = data.select_dtypes(include=["number", "object"]).columns
+    for col in num_cols:
+        if col != 't':
+            # Convert numeric columns to float, coercion handles invalid strings/NaNs
+            data[col] = pd.to_numeric(data[col], errors='coerce')
+
+    # Replace NaN/NaT with None so dict conversion excludes them or handles them cleanly
+    data = data.where(pd.notnull(data), None)
 
     influx_fields: list = data.to_dict(orient='records')
+    influx_records = []
+    generated_timestamps = []
 
+    # 3. Format records and capture output time strings
     for idx, field in enumerate(influx_fields):
+        # Clean fields: remove key-values that are None so InfluxDB doesn't throw type errors
+        cleaned_fields = {k: v for k, v in field.items() if k != 't' and v is not None}
+
+        if not cleaned_fields:
+            continue  # Skip empty points when inverter is offline
+
         if data_buffer.is_iec61850_tag:
             tags = build_iec61850_tags(data_buffer, **kwargs)
             tags.update(build_generic_tags(data_buffer, **kwargs))
         else:
             tags = build_generic_tags(data_buffer, **kwargs)
 
+        # Ensure ISO format with sub-second resolution (nanoseconds/microseconds)
+        raw_time = data.loc[idx, 't']
+        formatted_time = pd.to_datetime(raw_time, utc=True).strftime(INFLUXDB_UPLOAD_TIME_FORMAT)
+
+        generated_timestamps.append(formatted_time)
+
         record: dict = {
             'tags': tags,
-            'time': helper.convert_time_str_format(data.loc[idx, 't'], STANDARD_INFLUXDB_TIME_FORMAT),
+            'time': formatted_time,
             'measurement': data_buffer.influxdb.measurement_write,
-            'fields': field,
+            'fields': cleaned_fields,
         }
-
         influx_records.append(record)
+
+    # 4. Diagnostic Logging: Compare input vs output record counts & timestamp uniqueness
+    final_record_count = len(influx_records)
+    unique_timestamps_count = len(set(generated_timestamps))
+
+    logger.debug(f"[prep_records] Completed formatting for DO '{getattr(data_buffer, 'id', 'unknown')}':")
+    logger.debug(f"  • Input rows: {initial_row_count}")
+    logger.debug(f"  • Formatted records generated: {final_record_count}")
+    logger.debug(f"  • Unique formatted timestamps: {unique_timestamps_count}")
+
+    if unique_timestamps_count < final_record_count:
+        duplicates_lost = final_record_count - unique_timestamps_count
+        logger.error(
+            f"  ⚠️ TIMESTAMP COLLISION DETECTED! {duplicates_lost} out of {final_record_count} "
+            f"records generated identical timestamp strings! InfluxDB will overwrite these points, "
+            f"causing missing rows in database."
+        )
+        logger.error(f"  • Sample generated timestamps: {generated_timestamps[:5]}")
 
     return influx_records
 
@@ -641,10 +697,12 @@ def write_records(write_handler: InfluxDBClient,
         logger.exception(exc)
         return False
 
-def perform_upload(data_buffer: 'DataBuffer', **kwargs) -> bool:
+def perform_upload(data_buffer: 'DataBuffer', MAX_RETRY_ROWS=1000, **kwargs) -> bool:
     """
     This method uploads the latest measurements to the pre-configured influxdb regularly.
     It requires the influxdb write handler.
+
+    MAX_RETRY_ROWS = 1000 accounts for data in queue of 2.77 hours with update interval of 10s.
 
     Parameters
     ----------
@@ -693,11 +751,12 @@ def perform_upload(data_buffer: 'DataBuffer', **kwargs) -> bool:
             else:
                 # If write failed, restore unsent records back to data_for_upload safely
                 with data_buffer._record_lock:
-                    data_buffer.records.data_for_upload = pd.concat(
-                        [pending_df, data_buffer.records.data_for_upload],
-                        ignore_index=True
-                    )
-
+                    combined_df = pd.concat([pending_df, data_buffer.records.data_for_upload], ignore_index=True)
+                    # Keep only the most recent N rows to prevent memory saturation
+                    data_buffer.records.data_for_upload = combined_df.tail(MAX_RETRY_ROWS).reset_index(drop=True)
+                logger.warning(f'Influxdb data upload failed for DO {data_buffer.iec61850_do.name}')
+        else:
+            logger.warining(f'The method prep_records returend empty list for DO {data_buffer.iec61850_do.name}')
     except Exception as exc:
         logger.warning(f'Failed to write DO {data_buffer.influxdb.parent} to influxdb, wait for the next iteration.')
         logger.exception(exc)

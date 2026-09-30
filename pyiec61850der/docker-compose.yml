@@ -3,7 +3,7 @@ services:
     build:
         context: ./
         dockerfile: ./container/build/Dockerfile
-    image: mega_sim_testing:1.0
+    image: mega_sim_testing:1.0.1
     container_name: mega_sim_testing
     restart: 'always'
     volumes:
@@ -20,24 +20,13 @@ services:
       HOST_ETC: /rootfs/etc
     ports:
       - '60850:61850'
-  restarter:
-    image: docker:cli
-    container_name: cls_restarter
-    user: root
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: >
-      /bin/sh -c "
-      echo '=== Cls_restarter Service Initialized ===';
-      while true; do
-        for i in $$(seq 1 48); do
-          echo \"[$$(date '+%Y-%m-%d %H:%M:%S')] examining restarting flag: false -> idle\";
-          sleep 1800;
-        done;
-        echo \"[$$(date '+%Y-%m-%d %H:%M:%S')] examining restarting flag: true -> performing restart\";
-        docker restart mega_sim_testing;
-      done"
-    restart: unless-stopped
+    healthcheck:
+      # if the last heart beat is longer than 5 min, then force a restart
+      test: [ "CMD-SHELL", "test $(expr $(date +%s) - $(stat -c %Y /work/heartbeat 2>/dev/null || echo 0)) -lt 300" ]
+      interval: 1m
+      timeout: 10s
+      retries: 2
+      start_period: 2m
 
   # Deactivate the network_sniffer if you DO NOT need it
   network_sniffer:

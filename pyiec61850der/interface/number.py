@@ -11,8 +11,8 @@ from settings import helper
 
 from settings.helper import rotating_logger
 
-
-logger = rotating_logger(__name__)
+import logging
+logger = logging.getLogger(f"main_logger.{__name__}")
 
 FloatTypes = helper.StdDataType.FloatTypes
 IntTypes = helper.StdDataType.IntTypes
