@@ -429,6 +429,7 @@ def update_mapping_by_scan(ied_manager: 'IedManager'):
         export_updated_df_mapping(df_active_sunspec, ied_config.interface.path_sunspec_mapping_export, idx_device)
 
         # assign the conn_obj and configurations to data_buffer instances
+        conn_obj.timeout = 5.0  # leave the conn_obj 5s timeout to avoid long stall due to connection loss
         conn_obj.modbus_lock = threading.Lock()
         assign_conn_to_data_buffers(ied_manager.ied_server, df_lookup_updated, df_active_sunspec, conn_obj, conn_config)
 

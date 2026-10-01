@@ -14,7 +14,7 @@ import time
 import pytz
 import pandas as pd
 import math
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from communication.pyiec61850_server import IedServer, IEC61850ServerMMS
 from settings.config import IedConfig
@@ -22,6 +22,7 @@ import settings.helper as helper
 from settings.helper import rotating_logger
 from interface.influxdb import InfluxdbHandler
 import interface.sunspec as interface_sunspec
+import interface.influxdb as interface_influxdb
 
 from model import IEC61850DataModelGenerator
 from communication import pyiec61850_server
@@ -635,12 +636,9 @@ class IedServiceManager:
     background daemon tasks for the Virtual IED server.
     """
 
-    def __init__(self, ied_manager: IedManager, trigger_influxdb_upload_func=None, db_ready_event=None):
+    def __init__(self, ied_manager: IedManager, db_ready_event=None):
         self.ied_manager = ied_manager
-        self.trigger_influxdb_upload_func = trigger_influxdb_upload_func
-        self.db_ready_event = db_ready_event or threading.Event()
-
-        # Ensure db_ready_event is set initially
+        self.db_ready_event = threading.Event()
         self.db_ready_event.set()
 
         self.stop_event = threading.Event()
@@ -648,9 +646,102 @@ class IedServiceManager:
 
         # Initialize the CSV Executor bound to this service manager instance
         self.csv_writer_executor = ThreadPoolExecutor(
-            max_workers=4,
+            max_workers=10,
             thread_name_prefix="csv_writer"
         )
+
+        # Use persistent thread pool. Limits max concurrent connections to InfluxDB.
+        # TODO: make INFLUX_MAX_WORKERS a parameter in config.yaml or IedManager
+        INFLUX_MAX_WORKERS = 50
+        self.influx_executor = ThreadPoolExecutor(
+            max_workers=INFLUX_MAX_WORKERS,
+            thread_name_prefix="influx_upload")
+
+    @staticmethod
+    def _write_buffer_to_csv(data_buffer):
+        """Helper function executed asynchronously in the thread pool for disk I/O."""
+        try:
+            flag = data_buffer.export_records_locally()
+            if flag == 1:
+                logger.debug(f"Export CSV completed for DO {data_buffer.iec61850_do.name}.")
+            elif flag == 99:
+                logger.warning(f"Export CSV failed for DO {data_buffer.iec61850_do.name}!")
+        except Exception as err:
+            logger.error(f"Failed to export CSV for DO {data_buffer.iec61850_do.name}: {err}")
+
+    def _upload_to_influxdb(self, data_buffer):
+        """
+        Executes concurrently across worker threads.
+        Catches errors locally so worker threads don't crash the pool.
+        """
+
+        # Instantly abort if shutdown was initiated
+        if self.stop_event.is_set():
+            return
+
+        if not data_buffer.is_idle:
+            try:
+                # Let worker threads upload IN PARALLEL (No lock here!)
+                is_written = interface_influxdb.perform_upload(data_buffer)
+                if not is_written:
+                    logger.warning(f"Upload influxdb worker completed, but the upload failed  for DO"
+                                   f" {data_buffer.iec61850_do.name}.")
+            except Exception as err:
+                logger.error(f"Worker upload failed for DO {data_buffer.iec61850_do.name}: {err}")
+
+    def _trigger_influxdb_upload(self):
+        """
+        A thread-safe function utilizing a persistent thread pool to safely upload
+        databuffer recordings to InfluxDB with a fallback expiration timeout.
+        """
+
+        logger.info('Upload data_buffer records to remote database influxdb has been triggered.')
+        ied_server = self.ied_manager.ied_server
+
+        futures = {}
+        for data_buffer in ied_server.data_buffers.values():
+            if self.stop_event.is_set():
+                logger.warning("Shutdown in progress. Aborting InfluxDB submit loop.")
+                return
+
+            if data_buffer.influx_level > 0:
+                try:
+                    future = self.influx_executor.submit(self._upload_to_influxdb, data_buffer)
+                    futures[future] = data_buffer.iec61850_do.name
+                except RuntimeError:
+                    logger.warning("Influx executor already shut down. Skipping remaining task submissions.")
+                    break
+
+        if not futures:
+            logger.info('No data_buffers qualified for InfluxDB upload in this cycle.')
+            return
+
+        # A short timeout stops late HTTP requests from blocking execution stacks
+        UPLOAD_TIMEOUT_SEC = 120.0
+
+        try:
+            # Process tasks as they finish, capping at our total timeout cushion
+            for future in as_completed(futures.keys(), timeout=UPLOAD_TIMEOUT_SEC):
+                do_name = futures[future]
+                try:
+                    future.result()  # Raises exceptions thrown inside _upload_to_influxdb
+                except Exception as err:
+                    logger.error(f"InfluxDB upload failed for DO {do_name}: {err}")
+        except TimeoutError:
+            logger.error(
+                f"InfluxDB upload sequence reached strict timeout threshold ({UPLOAD_TIMEOUT_SEC}s). Dropping hung connections.")
+            cancelled_count = 0
+            for future in list(futures.keys()):
+                if future.cancel():
+                    cancelled_count += 1
+
+            # 2. Log status of dropped tasks
+            logger.warning(
+                f"Cancelled {cancelled_count} pending InfluxDB upload task(s). "
+                f"{len(futures) - cancelled_count} task(s) exceeded the timeout while executing."
+            )
+
+        logger.info('Upload data_buffer records to remote database influxdb sequence complete.')
 
     # =========================================================================
     # Task 1: Local CSV Archive Worker
@@ -669,20 +760,13 @@ class IedServiceManager:
                 data_buffers = list(self.ied_manager.ied_server.data_buffers.values())
                 monitored_buffers = [db for db in data_buffers if getattr(db, 'is_monitor', False)]
 
-                def _write_buffer_to_csv(data_buffer):
-                    """Helper function executed asynchronously in the thread pool for disk I/O."""
-                    try:
-                        flag = data_buffer.export_records_locally()
-                        if flag == 1:
-                            logger.debug(f"Export CSV completed for DO {data_buffer.iec61850_do.name}.")
-                        elif flag == 99:
-                            logger.warning(f"Export CSV failed for DO {data_buffer.iec61850_do.name}!")
-                    except Exception as err:
-                        logger.error(f"Failed to export CSV for DO {data_buffer.iec61850_do.name}: {err}")
-
                 # Offload file writing asynchronously without holding GIL / locking the worker thread
                 for db in monitored_buffers:
-                    self.csv_writer_executor.submit(_write_buffer_to_csv, db)
+                    if not self.stop_event.is_set():
+                        try:
+                            self.csv_writer_executor.submit(self._write_buffer_to_csv, db)
+                        except RuntimeError:
+                            logger.warning("CSV executor already shut down, skipping submission.")
 
                 logger.info("CSV archiving tasks successfully offloaded to disk executor.")
 
@@ -698,6 +782,7 @@ class IedServiceManager:
     # =========================================================================
     # Task 2: InfluxDB Upload Worker
     # =========================================================================
+
     def influx_upload_worker(self):
         time_manager = self.ied_manager.time_manager
         interval = time_manager.t_interval_data_upload
@@ -716,9 +801,8 @@ class IedServiceManager:
             # Wait if the database connection is currently being refreshed
             if self.db_ready_event.wait(timeout=WAIT_TIMEOUT):
                 try:
-                    if self.trigger_influxdb_upload_func:
-                        self.trigger_influxdb_upload_func(self.ied_manager.ied_server)
-                        logger.debug("InfluxDB upload completed.")
+                    self._trigger_influxdb_upload()
+                    logger.debug("InfluxDB upload completed.")
                 except Exception as err:
                     logger.exception(f"Error in InfluxDB Upload Worker: {err}")
             else:
@@ -946,19 +1030,32 @@ class IedServiceManager:
 
     def stop_all_services(self):
         """Signals all worker threads to stop and waits for their termination."""
+
         logger.info("Signaling all background worker threads to stop...")
+
+        # unblock all worker loops immediately
         self.stop_event.set()
+        if hasattr(self, 'db_ready_event') and self.db_ready_event:
+            logger.info("Shutting down influxdb connection maintainer pool...")
+            self.db_ready_event.set()  # Unblocks any thread waiting on db_ready_event.wait()
+
+        # join the worker loop threads, stop submitting new tasks
+        for th in self.threads:
+            if th.is_alive():
+                th.join(timeout=2.0)
+        self.threads.clear()
+
+        # safely shut down the ThreadPoolExecutors
+        if hasattr(self, 'influx_executor'):
+            logger.info("Shutting down influxdb upload executor pool...")
+            self.influx_executor.shutdown(wait=False, cancel_futures=True)
 
         # Safely shut down the CSV thread pool without blocking application cleanup
         if hasattr(self, 'csv_writer_executor'):
             logger.info("Shutting down CSV writer executor pool...")
             self.csv_writer_executor.shutdown(wait=False, cancel_futures=True)
 
-        for th in self.threads:
-            if th.is_alive():
-                th.join(timeout=2.0)
 
-        self.threads.clear()
         logger.info("All service workers stopped.")
 
     # =========================================================================
@@ -970,24 +1067,13 @@ class IedServiceManager:
         try:
             data_buffers = list(self.ied_manager.ied_server.data_buffers.values())
             monitored_buffers = [db for db in data_buffers if getattr(db, 'is_monitor', False)]
-
-            def _write_buffer_to_csv(data_buffer):
-                try:
-                    flag = data_buffer.export_records_locally()
-                    if flag == 1:
-                        logger.debug(f"Export CSV completed for DO {data_buffer.iec61850_do.name}.")
-                    elif flag == 99:
-                        logger.warning(f"Export CSV failed for DO {data_buffer.iec61850_do.name}!")
-                except Exception as err:
-                    logger.error(f"Failed to export CSV for DO {data_buffer.iec61850_do.name}: {err}")
-
-            futures = [self.csv_writer_executor.submit(_write_buffer_to_csv, db) for db in monitored_buffers]
+            futures = [self.csv_writer_executor.submit(self._write_buffer_to_csv, db) for db in monitored_buffers]
 
             # Wait for all submitted CSV writes to complete execution
             for future in futures:
                 future.result()
-
             logger.info("[Flush] CSV archive flush complete.")
+
         except Exception as err:
             logger.error(f"[Flush] Failed during CSV archive flush: {err}")
 
@@ -995,19 +1081,15 @@ class IedServiceManager:
         """Immediately triggers an InfluxDB upload cycle and waits for batch tasks to finish."""
         logger.info("[Flush] Triggering immediate InfluxDB batch upload...")
         try:
-            # Execute your existing InfluxDB batch extraction & upload logic here directly
-            if hasattr(self, '_process_influx_upload_batch'):
-                self._process_influx_upload_batch()
+            data_buffers = list(self.ied_manager.ied_server.data_buffers.values())
+            influx_buffers = [db for db in data_buffers if getattr(db, 'influx_level', 0) > 0]
+            futures = [self.influx_executor.submit(self._write_buffer_to_csv, db) for db in influx_buffers]
 
-            # Ensure any asynchronous futures in self.executor are fully flushed and completed
-            if hasattr(self, 'executor'):
-                # Wait for running tasks to drain
-                logger.info("[Flush] Waiting for InfluxDB thread executor to complete active tasks...")
-                # Alternatively, if write_api is used, flush its buffer explicitly:
-                if hasattr(self, 'influx_write_api') and self.influx_write_api:
-                    self.influx_write_api.flush()
-
+            # Wait for all submitted CSV writes to complete execution
+            for future in futures:
+                future.result()
             logger.info("[Flush] InfluxDB upload flush complete.")
+
         except Exception as err:
             logger.error(f"[Flush] Failed during InfluxDB upload flush: {err}")
 

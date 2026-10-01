@@ -140,16 +140,17 @@ def connect_influxdb(url: str = None,
     """
 
     logger.info('=================   Begin init influxdb connection    =================')
-
     logger.info(f"Try to init connection to server {url}")
+
+    INFLUX_CONN_TIMEOUT = 3000
 
     if token is not None:
         # TODO: add the timeout of influxdb client to config
-        influxdb_client = InfluxDBClient(url=url, token=token, org=org, debug=False, timeout=3000)
+        influxdb_client = InfluxDBClient(url=url, token=token, org=org, debug=False, timeout=INFLUX_CONN_TIMEOUT)
         # here we set a higher timeout to disable DEBUG:Rx:timeout log message.
 
-        health = influxdb_client.health()
-        if health.status == 'pass':
+        health = influxdb_client.ping()
+        if health:
             logger.info('Influxdb client is ready to connect')
         else:
             logger.error('Influxdb client has no connection to server')
@@ -685,7 +686,8 @@ def write_records(write_handler: InfluxDBClient,
     """
 
     if not options:
-        options = WriteOptions(batch_size=5000, flush_interval=10_000, jitter_interval=2_000, retry_interval=5_000)
+        options = WriteOptions(batch_size=5000, flush_interval=10_000, jitter_interval=2_000, retry_interval=5_000,
+                               max_close_wait=30_000)
 
     assert [isinstance(item, list) for item in influx_records]
     try:
@@ -722,7 +724,7 @@ def perform_upload(data_buffer: 'DataBuffer', MAX_RETRY_ROWS=1000, **kwargs) -> 
         logger.warning(
             f'Influxdb write handler for DO {data_buffer.influxdb.parent} does not exist, can not upload data')
         return False
-    elif data_buffer.influxdb.write_handler.health().status != 'pass':
+    elif not data_buffer.influxdb.write_handler.ping():
         logger.warning(f'Influxdb write handler for DO {data_buffer.influxdb.parent} has a bad connection')
         return False
 
@@ -756,7 +758,7 @@ def perform_upload(data_buffer: 'DataBuffer', MAX_RETRY_ROWS=1000, **kwargs) -> 
                     data_buffer.records.data_for_upload = combined_df.tail(MAX_RETRY_ROWS).reset_index(drop=True)
                 logger.warning(f'Influxdb data upload failed for DO {data_buffer.iec61850_do.name}')
         else:
-            logger.warining(f'The method prep_records returend empty list for DO {data_buffer.iec61850_do.name}')
+            logger.warining(f'The method prep_records returned empty list for DO {data_buffer.iec61850_do.name}')
     except Exception as exc:
         logger.warning(f'Failed to write DO {data_buffer.influxdb.parent} to influxdb, wait for the next iteration.')
         logger.exception(exc)

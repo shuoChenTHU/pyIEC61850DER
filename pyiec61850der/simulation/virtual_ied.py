@@ -12,7 +12,7 @@ ThreadPoolExecutor() from concurrent.futures for mainThread, and single thread h
 out to have relative good performance, in the sense of not getting stuck in main thread stuck just after a few of iterations.
 (executor raises a KeyboardInterrupt exception, which is easy to catch and get around).
 
-The other two options (multiprocessing.ThreadPool() and single thread handlers) are not that robust on linux plattfrom
+The other two options (multiprocessing.ThreadPool() and single thread handlers) are not that robust on linux platform
 regarding the code structure here. The biggest issue is that the hanging processes returns almost no knowledge about what
 is going on.
 
@@ -27,7 +27,7 @@ import logging
 import threading
 from threading import Lock
 import queue
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from communication.pyiec61850_server import IedServer
 
 
@@ -50,80 +50,6 @@ iec61850 = helper.import_libiec61850()
 logger = logging.getLogger(f"main_logger.{__name__}")
 logger.propagate = False
 
-# Use persistent thread pool. Limits max concurrent connections to InfluxDB.
-# This prevents thousands of OS threads from bleeding out your system's resources over time.
-# TODO: make INFLUX_MAX_WORKERS a parameter in config.yaml or IedManager
-
-# Change max workers to a reasonable size (e.g., 10-20)
-INFLUX_MAX_WORKERS = 50
-influx_executor = ThreadPoolExecutor(max_workers=INFLUX_MAX_WORKERS, thread_name_prefix="InfluxUpload")
-
-db_ready_event = threading.Event()
-db_ready_event.set()  # Start in 'ready' state
-
-"""
-=======================================================================
-=================   DEFINE THREAD WORKERS FUNCTIONS      ==============
-=======================================================================
-"""
-
-def upload_to_influxdb(data_buffer):
-    """
-    Executes concurrently across worker threads.
-    Catches errors locally so worker threads don't crash the pool.
-    """
-    if not data_buffer.is_idle:
-        try:
-            # Let worker threads upload IN PARALLEL (No lock here!)
-            interface.influxdb.perform_upload(data_buffer)
-        except Exception as err:
-            logger.error(f"Worker upload failed for DO {data_buffer.iec61850_do.name}: {err}")
-
-
-def trigger_influxdb_upload(ied_server: IEC61850ServerMMS):
-    """
-    A thread-safe function utilizing a persistent thread pool to safely upload
-    databuffer recordings to InfluxDB with a fallback expiration timeout.
-    """
-    logger.info('Upload data_buffer records to remote database influxdb has been triggered.')
-
-    futures = {}
-    for data_buffer in ied_server.data_buffers.values():
-        if data_buffer.influx_level > 0:
-            # Submit tasks to the reusable global pool instead of initializing new OS threads
-            future = influx_executor.submit(upload_to_influxdb, data_buffer)
-            futures[future] = data_buffer.iec61850_do.name
-
-    if not futures:
-        logger.info('No data_buffers qualified for InfluxDB upload in this cycle.')
-        return
-
-    # A short timeout stops late HTTP requests from blocking execution stacks
-    UPLOAD_TIMEOUT_SEC = 300.0
-
-    try:
-        # Process tasks as they finish, capping at our total timeout cushion
-        for future in as_completed(futures.keys(), timeout=UPLOAD_TIMEOUT_SEC):
-            do_name = futures[future]
-            try:
-                future.result()  # Raises exceptions thrown inside upload_to_influxdb
-            except Exception as err:
-                logger.error(f"InfluxDB upload failed for DO {do_name}: {err}")
-    except TimeoutError:
-        logger.error(
-            f"InfluxDB upload sequence reached strict timeout threshold ({UPLOAD_TIMEOUT_SEC}s). Dropping hung connections.")
-        cancelled_count = 0
-        for future in list(futures.keys()):
-            if future.cancel():
-                cancelled_count += 1
-
-        # 2. Log status of dropped tasks
-        logger.warning(
-            f"Cancelled {cancelled_count} pending InfluxDB upload task(s). "
-            f"{len(futures) - cancelled_count} task(s) exceeded the timeout while executing."
-        )
-
-    logger.info('Upload data_buffer records to remote database influxdb sequence complete.')
 
 
 """
@@ -303,11 +229,7 @@ def ied_routine(ied_manager: IedManager):
     time_manager.t_interval_rt = time_manager.t_interval_data_update
 
     # 2. Instantiate and Launch Background Service Manager
-    services = IedServiceManager(
-        ied_manager=ied_manager,
-        trigger_influxdb_upload_func=trigger_influxdb_upload,
-        db_ready_event=db_ready_event  # Shared threading.Event
-    )
+    services = IedServiceManager(ied_manager=ied_manager)
     services.start_all_services()
 
     # Start watchdog worker
@@ -442,9 +364,9 @@ def run_virtual_ied(path_config: str) -> IedManager:
             # init_virtual_ied_interfaces(ied_manager)
             #
             # # Reset status flags for next while-loop iteration
-            # ied_manager.is_running = True
-            # ied_manager.is_restart = False
-            # ied_manager.update_status()
+            ied_manager.is_running = False
+            ied_manager.is_restart = True
+            ied_manager.update_status()
 
             # as mentioned above, just exit with code 0
             sys.exit(0)
