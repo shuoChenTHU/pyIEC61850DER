@@ -644,15 +644,21 @@ class IedServiceManager:
         self.stop_event = threading.Event()
         self.threads = []
 
+        num_cores = os.cpu_count() or 4
+
+        # Multiply by multiplier (e.g. 1.0 or 2.0 max for ARM/Pi)
+        CORE_MULTIPLIER = 2  # Set to 1.0 for 1 worker per core (e.g., 4 workers on Pi 4/5)
+        INFLUX_MAX_WORKERS = max(2, int(num_cores * CORE_MULTIPLIER))
+        CSV_MAX_WORKERS = max(2, int(num_cores * CORE_MULTIPLIER))
+
         # Initialize the CSV Executor bound to this service manager instance
+
         self.csv_writer_executor = ThreadPoolExecutor(
-            max_workers=10,
+            max_workers=CSV_MAX_WORKERS,
             thread_name_prefix="csv_writer"
         )
 
         # Use persistent thread pool. Limits max concurrent connections to InfluxDB.
-        # TODO: make INFLUX_MAX_WORKERS a parameter in config.yaml or IedManager
-        INFLUX_MAX_WORKERS = 50
         self.influx_executor = ThreadPoolExecutor(
             max_workers=INFLUX_MAX_WORKERS,
             thread_name_prefix="influx_upload")
