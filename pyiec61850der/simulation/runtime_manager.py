@@ -890,16 +890,20 @@ class IedServiceManager:
 
     def sunspec_conn_obj_refresher_worker(self):
         """
-        Periodically triggers a full SunSpec connection object scan in the background.
-        Default interval: 7200 seconds (2 hours).
+        Periodically triggers a SunSpec connection object health check and scan in the background.
+        Interval:
+        - 30 minutes (1800s) during nighttime (22:00 - 04:00 UTC)
+        - 5 minutes (300s) during daytime
         """
 
-        time_manager = self.ied_manager.time_manager
-        refresh_interval_sec = time_manager.SUNSPEC_CONN_OBJ_TIMER
+        def _is_night_time(ctime):
+            utc_hour = ctime.hour
+            is_night = (utc_hour >= 22 or utc_hour < 4)
+            refresh_interval_sec = 1800.0 if is_night else 300.0
+            return is_night, refresh_interval_sec
 
-        logger.info(f"SunSpec Connection Refresher Worker active (Interval: {refresh_interval_sec}s).")
+        logger.info("SunSpec Connection Refresher Worker active with dynamic daytime/nighttime interval.")
 
-        # Track the last refresh execution time
         last_refresh_time = 0.0
 
         while not self.stop_event.is_set() and self.ied_manager.status < 4:
@@ -911,11 +915,15 @@ class IedServiceManager:
                     continue
 
                 now = time.monotonic()
+
+                # Determine dynamic interval based on current UTC time
+                is_night, refresh_interval_sec = _is_night_time(self.ied_manager.time_manager.ctime)
+
                 if now - last_refresh_time >= refresh_interval_sec:
-                    logger.info("Triggering periodic SunSpec connection object health check and scan...")
+                    mode_str = "Nighttime (30m interval)" if is_night else "Daytime (5m interval)"
+                    logger.info(f"Triggering SunSpec connection health check ({mode_str})...")
 
                     conn_objs = self.get_sunspec_conn_objs()
-
                     logger.info(f"Found {len(conn_objs)} unique SunSpec connection objects to check.")
 
                     for idx, conn_obj in enumerate(conn_objs):
@@ -926,11 +934,15 @@ class IedServiceManager:
                         if conn_obj is None:
                             continue
 
-                        # 1. Reconnection Handler Guard
-                        is_healthy = interface_sunspec.keep_alive(conn_obj)
+                        # 1. Non-disruptive Connection Guard
+                        is_healthy = False
+                        try:
+                            is_healthy = interface_sunspec.keep_alive(conn_obj)
+                        except Exception as err:
+                            logger.warning(f"Health check exception for index {idx}: {err}")
 
                         if is_healthy:
-                            # Check if models dictionary is empty or unpopulated
+                            # Check if models dictionary is populated
                             has_models = hasattr(conn_obj, 'models') and bool(conn_obj.models)
 
                             if not has_models:
@@ -939,14 +951,23 @@ class IedServiceManager:
                                     interface_sunspec.sunspec_scanner(idx, conn_obj)
                                 except Exception as err:
                                     logger.error(f"Error scanning SunSpec connection object index {idx}: {err}")
-                            else:
-                                logger.debug(
-                                    f"Connection object index {idx} is healthy and models are already populated. Skipping scan.")
                         else:
+                            # === RECONNECTION FIX ===
                             logger.warning(
-                                f"Skipping SunSpec scan for connection object at index {idx}: "
-                                f"Server unreachable after reconnection attempt."
-                            )
+                                f"Connection object index {idx} unreachable/unhealthy. Attempting reconnection...")
+
+                            try:
+                                if hasattr(conn_obj, 'connect'):
+                                    conn_obj.connect()
+
+                                # Reset offline flag on successful reconnection
+                                logger.info(f"Successfully reconnected SunSpec server at index {idx}!")
+
+                            except Exception as reconnect_err:
+                                logger.error(
+                                    f"Failed to reconnect SunSpec server at index {idx}: {reconnect_err}. "
+                                    f"Will retry in next refresh cycle."
+                                )
 
                     last_refresh_time = time.monotonic()
                     logger.info("SunSpec connection object refresh cycle completed.")
@@ -954,6 +975,7 @@ class IedServiceManager:
             except Exception as err:
                 logger.exception(f"Error in SunSpec Connection Refresher Worker: {err}")
 
+            # Short sleep to keep loop responsive to stop_event
             if self.stop_event.wait(timeout=1.0):
                 break
 

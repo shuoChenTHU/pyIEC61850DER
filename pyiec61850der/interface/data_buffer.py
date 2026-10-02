@@ -78,6 +78,12 @@ class DataBuffer(KwargsHandler):
         - or initialize for each DataBuffer a sub data buffer for the DAs?
         - or should we handle the DO by cdc type?
 
+    IEC 61850 data quality flags:
+        - QUALITY_VALIDITY_GOOD   0
+        - QUALITY_VALIDITY_INVALID   2
+        - QUALITY_VALIDITY_RESERVED   1
+        - QUALITY_VALIDITY_QUESTIONABLE   3
+        - ..
     TODO: some attributes could be configured by IEC 61850 parameters, double-check and implement
 
 
@@ -121,6 +127,7 @@ class DataBuffer(KwargsHandler):
         # NOTE: this value name could be generalised for all types of communication protocols, not just IEC 61850
         self.value_external: float | int | str| None = None
         self._value_iec61850: float | int | None = None  # make value_iec61850 a property
+        self.value_quality: int = 2  # see quality flags in docstring, use invalid state unless valid value available
         self.is_monitor: bool = False
         self.is_control: bool = False
         self.is_idle: bool = False  # data_buffer is considered idle, if neither monitoring nor controlling
@@ -396,7 +403,7 @@ class DataBuffer(KwargsHandler):
 
         return v
 
-    def update_external_value(self, val: np.number) -> np.number | None:
+    def update_external_value(self, val: np.number, is_init:bool=False):
         """
         This function helps to calculate the actual value of a parameter that is frequently read from a data source. It takes the
         scaling_factor and unit_factor of the pre-configuration into account, based on that it generate the scaled value and write it to
@@ -412,28 +419,33 @@ class DataBuffer(KwargsHandler):
 
         lb, ub = self.numeric_limits
 
-        if all(pd.isna([self.value_external, val])):
-            self.value_external = 0.0
-            logger.warning('IEC 61850 requires numeric value, write 0.0 to replace None.')
-            logger.warning('This value could be misleading, attention.')
-            # TODO: implement a quality handler to pass bad quality
-            return None
-        elif pd.isna(val):
-            logger.debug('Got nan value from the external source, no action.')
-            return None
+        if pd.isna(val):
+            if is_init:
+                self.value_external = 0.0
+                self.value_quality = 2  # QUALITY_VALIDITY_INVALID
+                logger.warning(f'Write invalid value 0.0 to DO {self.iec61850_do.id}.')
+                logger.warning('Because IEC 61850 requires numeric value, can not pass None. This value could be '
+                               'misleading, attention.')
+            elif self.value_quality == 2:
+                pass
+            else:
+                # Preserve the old value for self.value_external, only change quality flag
+                self.value_quality = 3  # QUALITY_VALIDITY_QUESTIONABLE
+                logger.debug('Got nan value from the external source, no action.')
         else:
             try:
                 val_scaled = val * self.unit_factor * self.scaling_factor
 
                 if not is_valid_number(val_scaled):
                     logger.warning(f'{val_scaled} is not a number! Double check the data type, scaling_factor and unit_factor')
+                    self.value_quality = 3  # QUALITY_VALIDITY_QUESTIONABLE
                     raise ValueError
                 else:
                     self.value_external = max(min(val_scaled, ub), lb)
-                    return val_scaled
+                    self.value_quality = 0 # QUALITY_VALIDITY_GOOD
             except Exception as e:
+                self.value_quality = 3  # QUALITY_VALIDITY_QUESTIONABLE
                 logger.exception(e)
-                return None
 
     def init_single_value(self):
         """
@@ -498,7 +510,7 @@ class DataBuffer(KwargsHandler):
         else:
             logger.warning(f'Unknown data source: {self.data_source}, please check the config file.')
 
-        actual_value = self.update_external_value(val_new)
+        self.update_external_value(val_new, True)
 
     def update_buffer_single_val(self):
         """
@@ -556,7 +568,7 @@ class DataBuffer(KwargsHandler):
             else:
                 logger.error(f'Unknown data source: {self.data_source}, please check the config file.')
 
-        actual_value = self.update_external_value(val_new)
+        self.update_external_value(val_new)
 
     def create_single_record(self):
         """

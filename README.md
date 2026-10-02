@@ -246,7 +246,7 @@ Please visit [this doc page](./doc/4_build_large_scale_vIED_simulation.md)
 ## Known issues and restrictions
 Here some known issues are listed, if you run into problems during code execution, you may have to check it out here. 
 
-- A compliance list regarding various combination of python version, OS and libiec61850 version can be found [here](https://gitlab.com/thu_smartgrids/pylibiec61850).
+- A compliance list regarding various combination of python version, OS and libiec61850 version can be found [here](https://gitlab.com/thu_smartgrids/pyiec61850).
 - For the current development on Windows OS, `libiec61850-1.6.0 + Python 3.12` is applied.
 - In the open source `libIEC61850`, some CDC classes are not yet supported or not completely support (e.g. APC 
   type has mxVal, but not ctlVal). For model consistency, those DO with unsupported CDC types will be dumped during the IED server initialisation, accordingly a reduced data model will be exported afterwards.  
@@ -291,6 +291,15 @@ The conception and implementation of pyiec61850DER was co-funded by the followin
   - Prototyping for the IEC 61850 DER data model generator
   - Prototyping for the data interfaces (local, influxdb)
   - Integration of solar irradiation / power prediction into the IEC 61850 data structure
+
+## AI Assistance & Attribution
+Recent code refactoring, debugging and performance optimisation are assisted by AI (**OpenAI ChatGPT** and **Google 
+Gemini**).
+
+High-level code architecture, function definitions and data processing logics remain human-developed in the scope of 
+aforementioned research projects.
+
+All AI-generated code has been manually audited, tested, and verified for security and performance by the repository maintainer.
 
 
 # License

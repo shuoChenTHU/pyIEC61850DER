@@ -2,6 +2,25 @@
 """
 Core functions for the data operations in terms of a real-time IEC 61850 MMS interface.
 
+
+Quality flags in libIEC61850:
+    #define QUALITY_DETAIL_BAD_REFERENCE   16
+    #define QUALITY_DETAIL_FAILURE   64
+    #define QUALITY_DETAIL_INACCURATE   512
+    #define QUALITY_DETAIL_INCONSISTENT   256
+    #define QUALITY_DETAIL_OLD_DATA   128
+    #define QUALITY_DETAIL_OSCILLATORY   32
+    #define QUALITY_DETAIL_OUT_OF_RANGE   8
+    #define QUALITY_DETAIL_OVERFLOW   4
+    #define QUALITY_OPERATOR_BLOCKED   4096
+    #define QUALITY_SOURCE_SUBSTITUTED   1024
+    #define QUALITY_TEST   2048
+    #define QUALITY_VALIDITY_GOOD   0
+    #define QUALITY_VALIDITY_INVALID   2
+    #define QUALITY_VALIDITY_QUESTIONABLE   3
+    #define QUALITY_VALIDITY_RESERVED   1
+
+TODO: add more data type handlers, e.g. a string handler
 """
 
 
@@ -32,130 +51,169 @@ FloatTypes = helper.StdDataType.FloatTypes
 IntTypes = helper.StdDataType.IntTypes
 BoolTypes = helper.StdDataType.BoolTypes
 
+# Comprehensive C-SWIG IEC61850 function dispatch mapping: (update_fn, get_fn)
+# This is only a subset of all possible IEC 61850 data types
+MMS_TYPE_DISPATCH = {
+    float: (
+        iec61850.IedServer_updateFloatAttributeValue,
+        iec61850.IedServer_getFloatAttributeValue,
+    ),
+    int: (
+        iec61850.IedServer_updateInt32AttributeValue,
+        iec61850.IedServer_getInt32AttributeValue,
+    ),
+    bool: (
+        iec61850.IedServer_updateBooleanAttributeValue,
+        iec61850.IedServer_getBooleanAttributeValue,
+    ),
+    str: (
+        iec61850.IedServer_updateVisibleStringAttributeValue,
+        iec61850.IedServer_getStringAttributeValue,
+    ),
+    "time": (
+        iec61850.IedServer_updateUTCTimeAttributeValue,
+        iec61850.IedServer_getUTCTimeAttributeValue,
+    ),
+    "int64": (
+        iec61850.IedServer_updateInt64AttributeValue,
+        iec61850.IedServer_getInt64AttributeValue,
+    ),
+}
 
-def update_da_worker(ied_server: IEC61850ServerMMS, ied_server_swig_obj: Type["SwigPyObject"],
-                     data_buffer:DataBuffer, server_time_mode:str= 'absolute', verbose:bool=False):
-    # [idx, thisVal] = ied_server.get_external_value_by_idx(data_buffer.index)
-    # address = ied_server.monitor_obj_addrs[idx]
-    # refVal = ied_server.monitor_objs[idx]
-    # refTstmp = ied_server.time_objs[idx]
+def _coerce_external_value(data_buffer: DataBuffer, addr: str, verbose: bool) -> None:
+    """Enhanced CDC-aware type coercion for IEC 61850 attributes."""
+    val = data_buffer.value_external
+    cdc = data_buffer.iec61850_do.cdc.upper() if data_buffer.iec61850_do.cdc else ""
+    cdc_prefix = cdc[0] if cdc else ""
 
-    addr = data_buffer.iec61850_do.obj_ref_map['monitor_da_mms_addr']
-    da_obj = data_buffer.iec61850_do.obj_ref_map['monitor_da']
-    tstmp_obj = data_buffer.iec61850_do.obj_ref_map['monitor_da_t']
-    quality_obj = data_buffer.iec61850_do.obj_ref_map['monitor_da_q']
-
-    q_flag = iec61850.QUALITY_VALIDITY_GOOD
-    if da_obj is not None:
-        if data_buffer.value_external is not None:
-            if helper.is_valid_number(data_buffer.value_external):
-                # int, float or bool
-                # first use the monitorDA MMS address to determine data type
-                # if data type is undefined in the MMS address reference, then use the data type as provided by the data source
-
-                if addr[-2:] == '.f' and type(data_buffer.value_external) not in (
-                        np.float64, np.float32, np.floating, float):
-                    # pay attention to numpy float64
-                    data_buffer.value_external = float(data_buffer.value_external)
-                    if verbose:
-                        logger.info(
-                            f'Data type conversion for DA {data_buffer.id}: type {type(data_buffer.value_external)} -> float.')
-                elif addr[-2:] == '.i' and not isinstance(data_buffer.value_external, (
-                        int, np.integer, np.int32, np.int64)):
-                    # TODO: add logic to distiguish different int types like int32 and int64
-                    data_buffer.value_external = int(data_buffer.value_external)
-                elif data_buffer.iec61850_do.cdc[0] in ('E', 'I') and not isinstance(data_buffer.value_external, (
-                        int, np.integer, np.int32, np.int64)):
-                    # IXX -> int; EXX -> int (Enum literal)
-                    data_buffer.value_external = int(data_buffer.value_external)
-                elif data_buffer.iec61850_do.cdc[0] in ('B', 'S') and type(data_buffer.value_external) is not bool:
-                    # BXX -> bool (binary), SXX -> bool (single point)
-                    data_buffer.value_external = bool(data_buffer.value_external)
-            else:
-                data_buffer.value_external = str(data_buffer.value_external)
-                if data_buffer.value_external in ('True', 'true'):
-                    data_buffer.value_external = True
-                elif data_buffer.value_external in ('False', 'false'):
-                    data_buffer.value_external = False
-                else:
-                    # TODO: value_external is non-number (int, float or boolean) -> add a string handler
-                    if verbose:
-                        logger.info(f'Non-number data type of the DA {data_buffer.id}, skip it')
-                    pass
+    # 1. Address-suffix specific parsing
+    if addr.endswith(".f"):
+        data_buffer.value_external = float(val)
+        return
+    elif addr.endswith(".i"):
+        data_buffer.value_external = int(val)
+        return
+    elif addr.endswith(".b") or addr.endswith(".stVal") and cdc in ("SPS", "SPC"):
+        if isinstance(val, str):
+            data_buffer.value_external = val.strip().lower() in ("true", "1")
         else:
-            if verbose:
-                logger.info(f'No value available for the DA {data_buffer.id}, skip it')
-            pass
+            data_buffer.value_external = bool(val)
+        return
 
-        if type(data_buffer.value_external) in (np.float64, np.float32, np.floating, float):
-            iec61850.IedServer_updateFloatAttributeValue(ied_server_swig_obj, iec61850.toDataAttribute(da_obj),
-                                                         data_buffer.value_external)
-            data_buffer.value_iec61850 = iec61850.IedServer_getFloatAttributeValue(ied_server_swig_obj,
-                                                                                   iec61850.toDataAttribute(
-                                                                                     da_obj))
-        elif type(data_buffer.value_external) in (int, np.integer, np.int32, np.int64):
-            iec61850.IedServer_updateInt32AttributeValue(ied_server_swig_obj, iec61850.toDataAttribute(da_obj),
-                                                         data_buffer.value_external)
-            data_buffer.value_iec61850 = iec61850.IedServer_getInt32AttributeValue(ied_server_swig_obj,
-                                                                                   iec61850.toDataAttribute(
-                                                                                     da_obj))
-        elif type(data_buffer.value_external) is bool:
-            iec61850.IedServer_updateBooleanAttributeValue(ied_server_swig_obj, iec61850.toDataAttribute(da_obj),
-                                                           data_buffer.value_external)
-            data_buffer.value_iec61850 = iec61850.IedServer_getBooleanAttributeValue(ied_server_swig_obj,
-                                                                                     iec61850.toDataAttribute(
-                                                                                       da_obj))
-        elif type(data_buffer.value_external) is str:
-            iec61850.IedServer_updateVisibleStringAttributeValue(ied_server_swig_obj, iec61850.toDataAttribute(da_obj),
-                                                                 data_buffer.value_external)
-            data_buffer.value_iec61850 = iec61850.IedServer_getStringAttributeValue(ied_server_swig_obj,
-                                                                                    iec61850.toDataAttribute(
-                                                                                      da_obj))
+    # 2. CDC-Group specific parsing
+    # Status / Enumerated / Controllable Integer Classes
+    if cdc in ("INS", "INC", "ENS", "ENC", "DPS", "DPC") or cdc_prefix in ("E", "I"):
+        data_buffer.value_external = int(val)
+
+    # Boolean / Binary Classes (Single Point Status / Command)
+    elif cdc in ("SPS", "SPC") or cdc_prefix in ("B", "S"):
+        if isinstance(val, str):
+            data_buffer.value_external = val.strip().lower() in ("true", "1")
         else:
-            q_flag = iec61850.QUALITY_VALIDITY_QUESTIONABLE
-            if verbose:
-                logger.info(
-                    f'Invalid type {type(type(data_buffer.value_external))} for the DA {data_buffer.id}, skip it')
+            data_buffer.value_external = bool(val)
 
-        # TODO: also update the quality of the DO
-        data_buffer.update_records(data_buffer.create_single_record())
+    # Description & Nameplate String Classes (DPL, LPL, CSD)
+    elif cdc in ("DPL", "LPL", "CSD", "VSG") or cdc_prefix == "D":
+        data_buffer.value_external = str(val)
 
-        if tstmp_obj is not None:
-            if server_time_mode == 'absolute':
-                iec61850.IedServer_updateUTCTimeAttributeValue(ied_server_swig_obj, iec61850.toDataAttribute(tstmp_obj),
-                                                               helper.time_unix_to_unit64())
-            elif server_time_mode == 'simulation':
-                iec61850.IedServer_updateUTCTimeAttributeValue(ied_server_swig_obj, iec61850.toDataAttribute(tstmp_obj),
-                                                               helper.time_unix_to_unit64(
-                                                                   ied_server.server_config.container.ctime_unix,
-                                                                   'UTC'))
-            else:
-                logger.warning('Unknown time type, can not add timestamp to the float value')
+    # Measurand / Analog Settings (MV, SAV, ASG)
+    elif cdc in ("MV", "SAV", "ASG", "CMV") or cdc_prefix == "M":
+        if helper.is_valid_number(val):
+            data_buffer.value_external = float(val)
 
-        if quality_obj is not None:
-            # TODO: define more methods to determine the quality flag
-            """
-            #define QUALITY_DETAIL_BAD_REFERENCE   16
-            #define QUALITY_DETAIL_FAILURE   64
-            #define QUALITY_DETAIL_INACCURATE   512
-            #define QUALITY_DETAIL_INCONSISTENT   256
-            #define QUALITY_DETAIL_OLD_DATA   128
-            #define QUALITY_DETAIL_OSCILLATORY   32
-            #define QUALITY_DETAIL_OUT_OF_RANGE   8
-            #define QUALITY_DETAIL_OVERFLOW   4
-            #define QUALITY_OPERATOR_BLOCKED   4096
-            #define QUALITY_SOURCE_SUBSTITUTED   1024
-            #define QUALITY_TEST   2048
-            #define QUALITY_VALIDITY_GOOD   0
-            #define QUALITY_VALIDITY_INVALID   2
-            #define QUALITY_VALIDITY_QUESTIONABLE   3
-            #define QUALITY_VALIDITY_RESERVED   1
-            """
-            iec61850.IedServer_updateQuality(ied_server_swig_obj, iec61850.toDataAttribute(quality_obj), q_flag)
+    # Generic string-based fallback checks
+    elif isinstance(val, str):
+        val_lower = val.strip().lower()
+        if val_lower in ("true", "false"):
+            data_buffer.value_external = (val_lower == "true")
 
+
+def update_da_worker(ied_server: IEC61850ServerMMS,
+                     ied_server_swig_obj: Type["SwigPyObject"],
+                     data_buffer: DataBuffer,
+                     server_time_mode: str = "absolute",
+                     verbose: bool = False):
+
+    """Updates IEC 61850 MMS Data Attributes across all CDC categories."""
+    ref_map = data_buffer.iec61850_do.obj_ref_map
+    da_obj = ref_map.get("monitor_da")
+
+    if da_obj is None:
+        if verbose:
+            logger.info(f"Python reference unavailable for DA {data_buffer.id}, skipping.")
+        return
+
+    if data_buffer.value_external is None:
+        if verbose:
+            logger.info(f"No external value available for DA {data_buffer.id}, skipping.")
+        return
+
+    addr = ref_map.get("monitor_da_mms_addr", "")
+    tstmp_obj = ref_map.get("monitor_da_t")
+    quality_obj = ref_map.get("monitor_da_q")
+    q_flag = data_buffer.value_quality
+
+    # 1. CDC & Address Aware Coercion
+    _coerce_external_value(data_buffer, addr, verbose)
+    val = data_buffer.value_external
+
+    # 2. Determine target SWIG dispatch key
+    if isinstance(val, (bool, np.bool_)):
+        target_key = bool
+        val = bool(val)
+    elif isinstance(val, (int, np.integer)):
+        # Route large integers (>32-bit) to int64 if needed
+        target_key = "int64" if val.bit_length() > 31 else int
+        val = int(val)
+    elif isinstance(val, (float, np.floating)):
+        target_key = float
+        val = float(val)
+    elif isinstance(val, str):
+        target_key = str
+    elif isinstance(val, (bytes, bytearray)):
+        target_key = bytes
+        val = bytes(val)
     else:
-        logger.info(f'Python reference not available for the DA {data_buffer.id}, skip it')
+        target_key = None
 
+    # 3. Apply MMS SWIG update
+    da_attr = iec61850.toDataAttribute(da_obj)
+
+    if target_key in MMS_TYPE_DISPATCH:
+        update_fn, get_fn = MMS_TYPE_DISPATCH[target_key]
+        update_fn(ied_server_swig_obj, da_attr, val)
+        data_buffer.value_iec61850 = get_fn(ied_server_swig_obj, da_attr)
+    else:
+        q_flag = iec61850.QUALITY_VALIDITY_QUESTIONABLE
+        if verbose:
+            logger.info(
+                f"Unsupported CDC type {type(val).__name__} for DA {data_buffer.id}, set to QUESTIONABLE."
+            )
+
+    # 4. Save record history
+    data_buffer.update_records(data_buffer.create_single_record())
+
+    # 5. Timestamp update
+    if tstmp_obj is not None:
+        tstmp_da = iec61850.toDataAttribute(tstmp_obj)
+        if server_time_mode == "absolute":
+            mms_timestamp = helper.time_unix_to_unit64()
+        elif server_time_mode == "simulation":
+            sim_time = ied_server.server_config.container.ctime_unix
+            mms_timestamp = helper.time_unix_to_unit64(sim_time, "UTC")
+        else:
+            mms_timestamp = None
+
+        if mms_timestamp is not None:
+            iec61850.IedServer_updateUTCTimeAttributeValue(
+                ied_server_swig_obj, tstmp_da, mms_timestamp
+            )
+
+    # 6. Quality Flag update
+    if quality_obj is not None:
+        iec61850.IedServer_updateQuality(
+            ied_server_swig_obj, iec61850.toDataAttribute(quality_obj), q_flag
+        )
 
 def update_ied_attr(ied_server:IEC61850ServerMMS, verbose:bool=False):
     """

@@ -74,8 +74,61 @@ def get_string_from_node_data(node_data_ptr):
     return "Unknown_Element"
 
 
+def extract_mms_value_recursive(mms_value, res=None):
+    """
+    Recursively inspects an MmsValue tree to extract primitive value(s),
+    Quality bitmask(s), and UTCTime timestamp(s) into parallel lists.
+
+    Returns
+    -------
+    res : dict
+        {
+            'values': [val1, val2, ...],
+            'quality': [q1, q2, ...],      # Matched list of quality flags
+            'timestamp': [t1, t2, ...]     # Matched list of timestamps
+        }
+    """
+    if res is None:
+        res = {'values': [], 'quality': [], 'timestamp': []}
+
+    if mms_value is None:
+        return res
+
+    mms_type = iec61850.MmsValue_getType(mms_value)
+
+    # 1. Primitives & Value Containers
+    if mms_type == iec61850.MMS_FLOAT:
+        res['values'].append(round(iec61850.MmsValue_toFloat(mms_value), 4))
+    elif mms_type in (iec61850.MMS_INTEGER, iec61850.MMS_UNSIGNED):
+        res['values'].append(iec61850.MmsValue_toInt32(mms_value))
+    elif mms_type == iec61850.MMS_BOOLEAN:
+        res['values'].append(iec61850.MmsValue_getBoolean(mms_value))
+    elif mms_type == iec61850.MMS_VISIBLE_STRING:
+        res['values'].append(iec61850.MmsValue_toString(mms_value))
+
+    # 2. Quality BitString
+    elif mms_type == iec61850.MMS_BIT_STRING:
+        res['quality'].append(iec61850.MmsValue_getBitStringAsInteger(mms_value))
+
+    # 3. UTCTime Timestamp
+    elif mms_type == iec61850.MMS_UTC_TIME:
+        res['timestamp'].append(iec61850.MmsValue_getUtcTimeInMs(mms_value))
+
+    # 4. Structures & Arrays -> Recursively dive into child elements
+    elif mms_type in (iec61850.MMS_STRUCTURE, iec61850.MMS_ARRAY):
+        struct_size = iec61850.MmsValue_getArraySize(mms_value)
+        for i in range(struct_size):
+            child_element = iec61850.MmsValue_getElement(mms_value, i)
+            extract_mms_value_recursive(child_element, res)
+
+    return res
+
+
 def parse_and_print_dataset_with_names(dataset_values, data_set_directory):
-    """Aligns primitive numbers with text object names using matching positional indexes."""
+    """
+    Recursively unpacks dataset elements and formats single or multi-phase
+    values alongside their corresponding quality and timestamp lists.
+    """
     if not dataset_values or not data_set_directory:
         print("Data execution vectors are empty.")
         return
@@ -86,46 +139,40 @@ def parse_and_print_dataset_with_names(dataset_values, data_set_directory):
     for i in range(array_size):
         element = iec61850.MmsValue_getElement(dataset_values, i)
 
-        # 1. Fetch the text directory node pointer for this index position
+        # 1. Fetch text directory node name
         linked_list_node = iec61850.LinkedList_get(data_set_directory, i)
         raw_void_ptr = linked_list_node.data if hasattr(linked_list_node, 'data') else linked_list_node
-
-        # 2. Convert raw memory reference pointer to a Python text string
         element_name = get_string_from_node_data(raw_void_ptr)
 
-        if iec61850.MmsValue_getType(element) == iec61850.MMS_STRUCTURE:
-            struct_size = iec61850.MmsValue_getArraySize(element)
-            try:
-                if struct_size == 1:
-                    setmag_struct = iec61850.MmsValue_getElement(element, 0)
-                    float_element = iec61850.MmsValue_getElement(setmag_struct, 0)
-                    setmag_f = iec61850.MmsValue_toFloat(float_element)
-                    print(f"  [{i}] DO: {do_name:<12} | DA: {da_name:<8} -> Value: {setmag_f:<8}")
-                else:
+        parts = element_name.split('.')
+        do_name = parts[1] if len(parts) > 1 else "Unknown_DO"
+        da_name = ".".join(parts[2:]) if len(parts) > 2 else "Unknown_DA"
 
-                    # Drill down directly into standard structure layout to read mag.f, q, and t
-                    mag_struct = iec61850.MmsValue_getElement(element, 0)
-                    float_element = iec61850.MmsValue_getElement(mag_struct, 0)
-                    mag_f = iec61850.MmsValue_toFloat(float_element)
+        # 2. Extract lists of values, qualities, and timestamps
+        extracted = extract_mms_value_recursive(element)
+        vals = extracted['values']
+        quals = extracted['quality']
+        tstmps = extracted['timestamp']
 
-                    q_element = iec61850.MmsValue_getElement(element, 1)
-                    q_val = iec61850.MmsValue_getBitStringAsInteger(q_element)
-
-                    t_element = iec61850.MmsValue_getElement(element, 2)
-                    t_ms = iec61850.MmsValue_getUtcTimeInMs(t_element)
-
-                    # Split strings to extract clean DO and DA handles (e.g. splitting by '$')
-                    parts = element_name.split('.')
-                    do_name = parts[1] if len(parts) > 1 else "Unknown_DO"
-                    da_name = ".".join(parts[2:]) if len(parts) > 2 else "Unknown_DA"
-
-                    print(
-                        f"  [{i}] DO: {do_name:<12} | DA: {da_name:<8} -> Value: {mag_f:<8} | Quality: {hex(q_val):<5} | Time: {t_ms} ms")
-            except Exception as ex:
-                print(f"  [{i}] Error parsing standard layout path: {element_name} -> {ex}")
+        # 3. Format output based on single item vs multi-phase lists
+        if len(vals) == 1:
+            val_str = f"{vals[0]:<10}"
+            q_str = f"{hex(quals[0]):<5}" if quals else "N/A  "
+            t_str = f"{tstmps[0]} ms" if tstmps else "N/A"
+        elif len(vals) > 1:
+            # Multi-phase structure (e.g. phsA, phsB, phsC)
+            val_str = f"{str(vals):<10}"
+            q_str = f"{str([hex(q) for q in quals]):<5}" if quals else "N/A  "
+            t_str = f"{tstmps} ms" if tstmps else "N/A"
         else:
-            print(f"  [{i}] PATH: {element_name} -> Primitive Type Code: {iec61850.MmsValue_getType(element)}")
+            val_str = "N/A       "
+            q_str = "N/A  "
+            t_str = "N/A"
 
+        print(
+            f"  [{i:2d}] DO: {do_name:<12} | DA: {da_name:<12} -> "
+            f"Value: {val_str} | Quality: {q_str} | Time: {t_str}"
+        )
 
 def process_report_payload(connection, dataset_ref, data_set_directory):
     """Triggered by main loop to fetch and execute parsing of raw values."""

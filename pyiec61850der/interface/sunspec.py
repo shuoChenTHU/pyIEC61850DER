@@ -541,32 +541,72 @@ def reconnect_sunspec_server(sunspec_conn:SunSpecModbusClientDeviceTCP):
         logger.exception(e)
     return is_reconnected
 
-def keep_alive(sunspec_conn:SunSpecModbusClientDeviceTCP) -> bool:
+def keep_alive(sunspec_conn: SunSpecModbusClientDeviceTCP) -> bool:
     """
-    This function can be used to regularly check the active connection to the sunSpec
-    server, in case of disconnection, try to reconnect.
-
-    Parameters
-    ----------
-    sunspec_conn: the connection object to the sunspec server of interest
-
-    Returns
-    -------
-    is_alive: a bool flag that indicating the current health status of the sunspec connection
+    Checks the active connection to the SunSpec server.
+    Only attempts reconnect if the socket is actually closed/None.
     """
 
-    is_alive = False
+    def _cleanup_stale_socket(sunspec_conn):
+        """
+        Forces the closure of dead socket references in pysunspec2.
+        """
+        try:
+            if hasattr(sunspec_conn, 'close'):
+                sunspec_conn.close()
+
+            client = getattr(sunspec_conn, 'client', None)
+            if client:
+                if hasattr(client, 'close'):
+                    client.close()
+                # Explicitly clear the socket reference inside client.__dict__
+                if hasattr(client, '__dict__') and 'socket' in client.__dict__:
+                    client.__dict__['socket'] = None
+        except Exception as err:
+            logger.debug(f"Ignored error during socket cleanup: {err}")
+
+    if sunspec_conn is None:
+        return False
+
+        # 1. If flagged offline by read_value_from_point, treat as dead immediately
+    if getattr(sunspec_conn, 'is_offline', False):
+        logger.info("SunSpec connection flagged offline. Invalidating stale socket...")
+        _cleanup_stale_socket(sunspec_conn)
+        return False
+
     try:
-        sunspec_conn.connect()
-        is_alive = True
-        logger.info('Connection to the sunspec server is alive.')
-    except ModbusClientError:  # most probably ModbusClientError
-        logger.exception('The configured sunspec server is no longer available, try to reconnect')
-        is_alive = reconnect_sunspec_server(sunspec_conn)
+        # Inspect client and socket
+        client = getattr(sunspec_conn, 'client', None)
+        client_dict = getattr(client, '__dict__', {}) if client else {}
+        active_socket = client_dict.get('socket')
+
+        if active_socket is None:
+            logger.info("SunSpec socket is None. Connection is down.")
+            return False
+
+        # 2. Perform an actual live I/O check (e.g. read Common Model 1 ID or first model addr)
+        # Checking if socket object exists is NOT enough when network cable is unplugged.
+        if hasattr(sunspec_conn, 'models') and sunspec_conn.models:
+            # Pick the first available model instance to test socket responsiveness
+            first_model_id = next(iter(sunspec_conn.models))
+            model_instance = sunspec_conn.models[first_model_id][0]
+
+            # Attempt a minimal read to verify network pipe is alive
+            model_instance.read()
+
+        logger.debug("SunSpec connection verified active via live read test.")
+        return True
+
+    except (ModbusClientError, ConnectionAbortedError, BrokenPipeError, ConnectionResetError, OSError) as e:
+        logger.warning(f"SunSpec server socket failed live health check: {e}")
+        # Clean up the dead socket so future connect() calls can bind a new socket
+        _cleanup_stale_socket(sunspec_conn)
+        return False
+
     except Exception as e:
-        logger.exception('unexpected sunspec connection error, reconnection failed')
-        logger.exception(e)
-    return is_alive
+        logger.warning(f"Unexpected error during SunSpec keep_alive: {e}")
+        _cleanup_stale_socket(sunspec_conn)
+        return False
 
 def scan_sunspec_model(conn_obj: SunSpecModbusClientDeviceTCP) -> bool:
     """
@@ -704,16 +744,16 @@ def read_value_from_point(conn_obj: SunSpecModbusClientDeviceTCP,
         para_val = getattr(model_instance, parameter).cvalue
         logger.debug(f'Successfully fetched sunspec parameter {model_id} - {parameter} with value {para_val}')
         return para_val
-    except ModbusClientError:
-        logger.exception(f'Sunspec server for {parameter} unavailable, try to reconnect')
-        logger.exception(f'New reading for will be performed in the next iteration')
-        is_connected = reconnect_sunspec_server(conn_obj)
+    except (ModbusClientError, ConnectionAbortedError, BrokenPipeError, ConnectionResetError, OSError):
+        logger.warning(f'Sunspec server for {parameter} unavailable, wait for scheduled reconnection')
+        logger.warning(f'New reading for will be performed in the next iteration')
+        return None
     except AttributeError:
-        logger.exception(f'Reading sunspec parameter {parameter} caused AttributeError, skip this parameter')
+        logger.warning(f'Reading sunspec parameter {parameter} caused AttributeError, skip this parameter')
+        return None
     except Exception as e:
-        logger.exception(f'New reading for sunspec parameter {parameter} failed due to unexpected error.')
-        logger.exception(e)
-    return None
+        logger.warning(f'New reading for sunspec parameter {parameter} failed due to unexpected error.')
+        return None
 
 
 def read_single_value(data_buffer: 'DataBuffer') -> any:
