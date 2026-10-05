@@ -15,6 +15,7 @@ import pytz
 import pandas as pd
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import defaultdict
 
 from communication.pyiec61850_server import IedServer, IEC61850ServerMMS
 from settings.config import IedConfig
@@ -677,6 +678,8 @@ class IedServiceManager:
 
     def _upload_to_influxdb(self, data_buffer):
         """
+        NOTE: Use this
+
         Executes concurrently across worker threads.
         Catches errors locally so worker threads don't crash the pool.
         """
@@ -695,7 +698,8 @@ class IedServiceManager:
             except Exception as err:
                 logger.error(f"Worker upload failed for DO {data_buffer.iec61850_do.name}: {err}")
 
-    def _trigger_influxdb_upload(self):
+
+    def _trigger_single_influxdb_upload(self):
         """
         A thread-safe function utilizing a persistent thread pool to safely upload
         databuffer recordings to InfluxDB with a fallback expiration timeout.
@@ -749,6 +753,57 @@ class IedServiceManager:
 
         logger.info('Upload data_buffer records to remote database influxdb sequence complete.')
 
+    def _trigger_bulk_influxdb_upload(self):
+        """
+        Groups qualified data_buffers by unique connection and offloads one bulk task
+        per connection. Reduces timeout lockup when InfluxDB is offline.
+        """
+        logger.info('Upload data_buffer records to remote database influxdb has been triggered.')
+        ied_server = self.ied_manager.ied_server
+
+        # Group qualified buffers by unique (write_handler, bucket)
+        conn_groups = defaultdict(list)
+        for db in ied_server.data_buffers.values():
+            if getattr(db, 'influx_level', 0) > 0 and hasattr(db, 'influxdb'):
+                handler = getattr(db.influxdb, 'write_handler', None)
+                bucket = getattr(db.influxdb, 'write_bucket', None)
+                if handler and bucket:
+                    conn_groups[(handler, bucket)].append(db)
+
+        if not conn_groups:
+            logger.info('No data_buffers qualified for InfluxDB upload in this cycle.')
+            return
+
+        futures = {}
+        for (handler, bucket), buffers in conn_groups.items():
+            if self.stop_event.is_set():
+                logger.warning("Shutdown in progress. Aborting InfluxDB submit loop.")
+                return
+
+            # Submit exactly ONE task per unique connection
+            future = self.influx_executor.submit(interface_influxdb._bulk_upload_per_connection, handler, bucket,
+                                                 buffers)
+            futures[future] = (handler, len(buffers))
+
+        # Reduced strict timeout cushion (e.g., 8s instead of 120s)
+        UPLOAD_TIMEOUT_SEC = 8.0
+
+        try:
+            for future in as_completed(futures.keys(), timeout=UPLOAD_TIMEOUT_SEC):
+                handler, buf_count = futures[future]
+                try:
+                    success = future.result()
+                    if not success:
+                        logger.warning(f"Bulk upload failed for connection handling {buf_count} buffers.")
+                except Exception as err:
+                    logger.error(f"Bulk upload worker raised exception: {err}")
+        except TimeoutError:
+            logger.error(f"InfluxDB upload sequence hit timeout ({UPLOAD_TIMEOUT_SEC}s). Cancelling pending tasks.")
+            for future in futures:
+                future.cancel()
+
+        logger.info('Upload data_buffer records to remote database influxdb sequence complete.')
+
     # =========================================================================
     # Task 1: Local CSV Archive Worker
     # =========================================================================
@@ -790,6 +845,13 @@ class IedServiceManager:
     # =========================================================================
 
     def influx_upload_worker(self):
+        """
+        _trigger_single_influxdb_upload is inefficient, so we switch to bulk upload.
+        one worker per active unique influx connection.
+
+        :return:
+        """
+
         time_manager = self.ied_manager.time_manager
         interval = time_manager.t_interval_data_upload
         update_interval = time_manager.t_interval_rt
@@ -807,7 +869,8 @@ class IedServiceManager:
             # Wait if the database connection is currently being refreshed
             if self.db_ready_event.wait(timeout=WAIT_TIMEOUT):
                 try:
-                    self._trigger_influxdb_upload()
+                    self._trigger_bulk_influxdb_upload()
+                    # self._trigger_single_influxdb_upload()
                     logger.debug("InfluxDB upload completed.")
                 except Exception as err:
                     logger.exception(f"Error in InfluxDB Upload Worker: {err}")
@@ -1106,16 +1169,47 @@ class IedServiceManager:
             logger.error(f"[Flush] Failed during CSV archive flush: {err}")
 
     def flush_influx_upload(self):
-        """Immediately triggers an InfluxDB upload cycle and waits for batch tasks to finish."""
-        logger.info("[Flush] Triggering immediate InfluxDB batch upload...")
+        """
+        Immediately triggers a bulk InfluxDB upload cycle for all active connections
+        and waits for batch tasks to finish.
+        """
+        logger.info("[Flush] Triggering immediate bulk InfluxDB upload...")
         try:
-            data_buffers = list(self.ied_manager.ied_server.data_buffers.values())
-            influx_buffers = [db for db in data_buffers if getattr(db, 'influx_level', 0) > 0]
-            futures = [self.influx_executor.submit(self._write_buffer_to_csv, db) for db in influx_buffers]
+            ied_server = self.ied_manager.ied_server
 
-            # Wait for all submitted CSV writes to complete execution
+            # 1. Group qualified data buffers by unique connection handler & bucket
+            conn_groups = defaultdict(list)
+            for db in ied_server.data_buffers.values():
+                if getattr(db, 'influx_level', 0) > 0 and hasattr(db, 'influxdb'):
+                    handler = getattr(db.influxdb, 'write_handler', None)
+                    bucket = getattr(db.influxdb, 'write_bucket', None)
+                    if handler and bucket:
+                        conn_groups[(handler, bucket)].append(db)
+
+            if not conn_groups:
+                logger.info("[Flush] No data buffers qualified for InfluxDB flush.")
+                return
+
+            # 2. Submit ONE bulk upload task per unique connection group
+            futures = []
+            for (handler, bucket), buffers in conn_groups.items():
+                future = self.influx_executor.submit(
+                    interface_influxdb._bulk_upload_per_connection, handler, bucket, buffers
+                )
+                futures.append(future)
+
+            # 3. Wait for all bulk uploads to complete with a safety timeout per future
+            FLUSH_TIMEOUT_SEC = 10.0
             for future in futures:
-                future.result()
+                try:
+                    success = future.result(timeout=FLUSH_TIMEOUT_SEC)
+                    if not success:
+                        logger.warning("[Flush] One of the connection bulk uploads failed.")
+                except TimeoutError:
+                    logger.error(f"[Flush] Bulk upload task timed out after {FLUSH_TIMEOUT_SEC}s during flush.")
+                except Exception as f_err:
+                    logger.error(f"[Flush] Bulk upload task raised an error: {f_err}")
+
             logger.info("[Flush] InfluxDB upload flush complete.")
 
         except Exception as err:

@@ -699,8 +699,103 @@ def write_records(write_handler: InfluxDBClient,
         logger.exception(exc)
         return False
 
+def _extract_and_snapshot_buffers(data_buffers):
+    """
+    Extracts pending data snapshots for a group of data_buffers under lock.
+    Returns: list of tuples (data_buffer, pending_df)
+    """
+    snapshots = []
+    for db in data_buffers:
+        with db._record_lock:
+            if not db.records.data_for_upload.empty:
+                pending_df = db.records.data_for_upload.copy()
+                snapshots.append((db, pending_df))
+    return snapshots
+
+
+def _rollback_snapshots(snapshots, max_retry_rows=1000):
+    """
+    Restores captured data snapshots back to their respective data_buffers if upload fails.
+    """
+    for db, pending_df in snapshots:
+        with db._record_lock:
+            combined_df = pd.concat([pending_df, db.records.data_for_upload], ignore_index=True)
+            db.records.data_for_upload = combined_df.tail(max_retry_rows).reset_index(drop=True)
+
+
+def _clear_snapshots(snapshots):
+    """
+    Clears data_for_upload ONLY after a successful batch upload.
+    """
+    for db, pending_df in snapshots:
+        with db._record_lock:
+            # Drop the rows that were successfully transmitted
+            # keeping any newly accumulated rows during the HTTP POST
+            db.records.reset_data_for_upload()
+
+def _bulk_upload_per_connection(write_handler, bucket_name, data_buffers) -> bool:
+    """
+    Prepares records from all data_buffers sharing the same connection,
+    performs a SINGLE ping check, and transmits a single batch write payload.
+    """
+    if not write_handler:
+        logger.warning("InfluxDB write handler does not exist. Skipping bulk upload.")
+        return False
+
+    # 1. Single ping check per connection (NOT per DO)
+    if not write_handler.ping():
+        logger.warning("InfluxDB connection ping failed. Aborting bulk upload.")
+        return False
+
+    # 2. Extract snapshots from all buffers under their individual locks
+    snapshots = _extract_and_snapshot_buffers(data_buffers)
+    if not snapshots:
+        return True  # Nothing pending
+
+    # 3. Concatenate all influx points into a single batch list
+    all_influx_records = []
+    for db, pending_df in snapshots:
+        try:
+            records = prep_records(db, pending_df)
+            if records:
+                all_influx_records.extend(records)
+        except Exception as prep_err:
+            logger.error(f"Failed to prepare influx records for DO {db.iec61850_do.name}: {prep_err}")
+
+    if not all_influx_records:
+        return True
+
+    # 4. Perform SINGLE HTTP POST call for all data records
+    try:
+        is_written = write_records(write_handler, all_influx_records, bucket_name)
+
+        if is_written:
+            # SUCCESS: Clear the uploaded snapshots
+            _clear_snapshots(snapshots)
+            logger.info(
+                f"Successfully uploaded batch of {len(all_influx_records)} records "
+                f"across {len(snapshots)} data buffers to InfluxDB."
+            )
+            return True
+        else:
+            # FAILURE: Roll back all snapshot data safely to original data buffers
+            _rollback_snapshots(snapshots)
+            logger.warning(
+                f"Batch write returned False. Safely restored snapshots to {len(snapshots)} data buffers."
+            )
+            return False
+
+    except Exception as exc:
+        # EXCEPTION: Ensure complete rollback on network/timeout error
+        _rollback_snapshots(snapshots)
+        logger.warning(f"Failed to transmit bulk upload to InfluxDB: {exc}. Rolled back all snapshots.")
+        return False
+
 def perform_upload(data_buffer: 'DataBuffer', MAX_RETRY_ROWS=1000, **kwargs) -> bool:
     """
+    NOTE: deprecated method for uploading data to influxdb on DataBuffer basis. Use _bulk_upload_per_connection for
+    efficient operation on edge devices.
+
     This method uploads the latest measurements to the pre-configured influxdb regularly.
     It requires the influxdb write handler.
 

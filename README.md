@@ -24,8 +24,9 @@ at facilitating and stimulating the application of the industrial standard IEC 6
   * [Known issues and restrictions](#known-issues-and-restrictions)
   * [Data source](#data-source)
   * [Roadmap](#roadmap)
-  * [Acknowledgment](#acknowledgment)
+  * [Acknowledgment](#acknowledgment-)
   * [Funding](#funding)
+  * [AI Assistance & Attribution](#ai-assistance--attribution)
 * [License](#license)
 <!-- TOC -->
 
@@ -271,8 +272,9 @@ The development pipeline may focus on the following topics:
 - integration of power flow and optimal power flow solvers
 - integration of other solvers for (nonlinear) optimisation problems in the power network / energy market context
 
-## Acknowledgment
+## Acknowledgment 
 We appreciate the effort and contribution of all colleagues and former colleagues of the Smart Grid Research Group.
+
 
 ## Funding
 The conception and implementation of pyiec61850DER was co-funded by the following research project:
@@ -300,7 +302,6 @@ High-level code architecture, function definitions and data processing logics re
 aforementioned research projects.
 
 All AI-generated code has been manually audited, tested, and verified for security and performance by the repository maintainer.
-
 
 # License
 
