@@ -73,12 +73,12 @@ class CycleRecord:
     execution_time_s: float
 
 
-def get_left_skewed_value_peaking_at_60() -> float:
+def get_left_skewed_value(peak:int=50, bounds=(50,100)) -> float:
     """
     Generates a left-skewed float value between 10 and 100
     with the peak concentration (mode) at exactly 60.
     """
-    val = np.random.triangular(left=10, mode=60, right=100)
+    val = np.random.triangular(left=bounds[0], mode=peak, right=bounds[1])
     return round(val, 3)
 
 
@@ -218,7 +218,7 @@ def main():
                 continue  # Restart loop immediately once physical link is back
 
             # 2. Control Cycle
-            sp_target = get_left_skewed_value_peaking_at_60()
+            sp_target = get_left_skewed_value(30, (10,100))
 
             # Write Setpoint (SP)
             write_success = write_float_value(connection, write_obj_sp, sp_target, iec61850.IEC61850_FC_SP)
