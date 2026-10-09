@@ -12,7 +12,7 @@ TODO: make sure that the two objects ied_config and ied_server are only there to
 """
 
 import sunspec2.modbus.client as client
-from sunspec2.modbus.client import  SunSpecModbusClientDeviceTCP, SunSpecModbusClientPoint
+from sunspec2.modbus.client import  SunSpecModbusClientDeviceTCP, SunSpecModbusClientPoint, SunSpecModbusValueError
 from sunspec2.modbus.modbus import ModbusClientError
 import pandas as pd
 from pandas import DataFrame
@@ -23,6 +23,7 @@ from functools import wraps
 import threading
 from contextlib import nullcontext
 import time
+import struct
 
 import settings.helper as helper
 from settings.helper import rotating_logger
@@ -62,7 +63,7 @@ def exec_sunspec_control(sunspec_mappings: list, data_buffer: 'DataBuffer', is_f
     :return:
     """
 
-    def find_para_idx() -> tuple[int|None, DataFrame|None]:
+    def _find_para_idx() -> tuple[int | None, DataFrame | None]:
         """
         Pack the sunspec_mappings in outer loop, one data_buffer can only be assigned to maximal one inverter.
         As soon as one unique idx is found, return it.
@@ -88,19 +89,30 @@ def exec_sunspec_control(sunspec_mappings: list, data_buffer: 'DataBuffer', is_f
                 return idx_list[0], mapping
         return None, None
 
-    row_idx, sunspec_mapping = find_para_idx()
+    row_idx, sunspec_mapping = _find_para_idx()
+
     if row_idx is not None:
         model_id = sunspec_mapping.at[row_idx, 'model_id']
         para = sunspec_mapping.at[row_idx, 'name']
         val_write = data_buffer.get_current_source_value()
 
-        is_written = write_value_to_inverter(data_buffer.fieldbus_conn_obj, model_id, para,
+        try:
+            # Call your existing writer logic
+            is_written, committed_val = write_value_to_inverter(data_buffer.fieldbus_conn_obj, model_id, para,
                                                      val_write, is_force_enable)
-        return is_written
-    else:
-        return False
+            if is_written:
+                return True, None, committed_val
+            return False, 'NETWORK_ERROR', None
 
+        except (SunSpecModbusValueError, ValueError) as val_err:
+            logger.error(
+                f"[exec_control] Fatal SunSpec value error for DO {data_buffer.id} with value {data_buffer.value_external}: {val_err}"
+            )
+            return False, 'VALUE_ERROR', None
 
+        except Exception as net_err:
+            logger.error(f"[exec_control] Transient error for DO {data_buffer.id}: {net_err}")
+            return False, 'NETWORK_ERROR', None
 
 """
 ========================================================================
@@ -793,6 +805,57 @@ def read_single_value(data_buffer: 'DataBuffer') -> any:
 =======================================================================
 """
 
+def prepare_sunspec_value(para_obj, raw_val):
+    """
+    Inspects a pysunspec2 point object to determine if it requires an int or float,
+    and formats/rounds the input value accordingly.
+
+    Returns:
+        clean_val (int | float): The type-safe value ready to assign to para_obj.value.
+    """
+    # 1. Unwrap numpy scalars (e.g. np.float64, np.int64) to native Python types
+    if hasattr(raw_val, 'item'):
+        raw_val = raw_val.item()
+
+    # 2. Extract point metadata from pysunspec2
+    pt_type = getattr(para_obj, 'type', None)
+    pt_sf = getattr(para_obj, 'sf_value', None)
+    sf_name = getattr(para_obj, 'sf', None)
+
+    # Fallback scale factor lookup if sf attribute is detached
+    if pt_sf is None and hasattr(para_obj, 'model') and isinstance(sf_name, str):
+        if hasattr(para_obj.model, sf_name):
+            sf_point = getattr(para_obj.model, sf_name)
+            pt_sf = getattr(sf_point, 'value', None)
+
+    # 3. TYPE CHECKING LOGIC:
+
+    # CASE A: Native SunSpec Float32 / Float64
+    if pt_type in ('float32', 'float64'):
+        # Pass a rounded 32-bit float
+        return round(float(raw_val), 3)
+
+    # CASE B: Integer/Acc register WITH a Scale Factor (e.g., WMaxLimPct with sf = -2)
+    elif pt_sf is not None and isinstance(pt_sf, (int, float)):
+        decimals = abs(int(pt_sf)) if pt_sf < 0 else 0
+
+        if decimals > 0:
+            # Scaled point requires a rounded float matching resolution
+            return round(float(raw_val), decimals)
+        else:
+            # Scale factor is 0 or positive -> pure integer
+            return int(round(float(raw_val)))
+
+    # CASE C: Bitfields, Enums, or Unscaled Integers (e.g., Enable flags, Status codes)
+    elif pt_type in ('int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64', 'enum16', 'enum32', 'bitfield16',
+                     'bitfield32'):
+        return int(round(float(raw_val)))
+
+    # CASE D: Default Fallback
+    else:
+        # Default to float if fractional, else int
+        f_val = float(raw_val)
+        return int(f_val) if f_val.is_integer() else round(f_val, 2)
 
 def write_value_to_point(para_obj: SunSpecModbusClientPoint, value: any) -> bool:
     """
@@ -846,19 +909,16 @@ def write_numeric_value_to_point(conn_obj: SunSpecModbusClientDeviceTCP,
     A bool flag for the "write and check" operation.
     """
 
-    if hasattr(value, 'item'):
-        native_value = value.item()
-    else:
-        native_value = float(value) if isinstance(value, (float, int)) else value
-
-
+    write_value = prepare_sunspec_value(para_obj, value)
+    if not np.isclose(value, write_value):
+        logger.info(f'The raw value {value} has been rounded to {write_value} for decimal consistency.')
 
     lock = getattr(conn_obj, 'modbus_lock', None)
     lock_context = lock if lock is not None else nullcontext()
 
     try:
         with lock_context:
-            para_obj.cvalue = native_value
+            para_obj.cvalue = write_value
             # 1. Write the new control value over Modbus
             para_obj.write()
 
@@ -867,20 +927,20 @@ def write_numeric_value_to_point(conn_obj: SunSpecModbusClientDeviceTCP,
                 time.sleep(retry_delay)  # Yields GIL and gives inverter MCU time to commit registers
                 para_obj.read()
 
-                if abs(para_obj.cvalue - native_value) < tol:
+                if np.isclose(para_obj.cvalue, write_value, tol):
                     logger.info(
                         f"Success: Param {getattr(para_obj, 'name', 'DO')} "
-                        f"updated to {native_value} on attempt {attempt + 1}."
+                        f"updated to {write_value} on attempt {attempt + 1}."
                     )
-                    return True
+                    return True, write_value
 
                 # If all retries fail to verify
                 logger.error(
                     f"Modbus write failed verification after {max_retries} attempts: "
-                    f"Target={native_value}, Retained={para_obj.cvalue}"
+                    f"Target={write_value}, Retained={para_obj.cvalue}"
                 )
                 raise ValueError(
-                    f"Passing control value {native_value} succeeded on Modbus, but device retained {para_obj.cvalue}"
+                    f"Passing control value {write_value} succeeded on Modbus, but device retained {para_obj.cvalue}"
                 )
 
     except Exception as e:
@@ -1023,6 +1083,9 @@ def write_value_to_inverter(conn_obj: SunSpecModbusClientDeviceTCP,
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
+            except (SunSpecModbusValueError, struct.error) as fatal_err:
+                logger.error(f"Fatal SunSpec value/schema error for '{parameter}' with value {val}: {fatal_err}")
+                raise fatal_err
             except AttributeError:
                 logger.exception(f"AttributeError: '{parameter}' may not be implemented for the inverter")
             except ValueError:
@@ -1038,7 +1101,7 @@ def write_value_to_inverter(conn_obj: SunSpecModbusClientDeviceTCP,
             except Exception as e:
                 logger.exception(f"Unexpected error when writing action to parameter '{parameter}'")
                 logger.exception(e)
-            return None
+            return False, None
 
         return wrapper
 
@@ -1056,16 +1119,17 @@ def write_value_to_inverter(conn_obj: SunSpecModbusClientDeviceTCP,
 
         logger.info(f'Passing control value {val} to parameter {parameter}')
         obj = getattr(conn_obj.models[model_id][0], parameter)
-        is_written = write_numeric_value_to_point(conn_obj, obj, val)
+        is_written, committed_val = write_numeric_value_to_point(conn_obj, obj, val)
 
-        return is_written
+        return is_written, committed_val
 
     logger.info('-------------------------------------------------------------------')
 
     enable_options = init_options()
     for opt in enable_options:
-        if _single_value_writer(opt['option']):
-            return True
+        is_written, committed_val = _single_value_writer(opt['option'])
+        if is_written:
+            return True, committed_val
         else:
             logger.warning(opt['msg'])
 
@@ -1074,7 +1138,7 @@ def write_value_to_inverter(conn_obj: SunSpecModbusClientDeviceTCP,
         f"Check inverter or configuration."
     )
     logger.info('-------------------------------------------------------------------\n')
-    return False
+    return False, None
 
 
 def find_index_in_df(df: DataFrame, col_name: str, value: any) -> int | None:

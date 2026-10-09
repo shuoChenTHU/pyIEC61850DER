@@ -27,7 +27,8 @@ import logging
 import threading
 from threading import Lock
 import queue
-
+import numpy as np
+from sunspec2.modbus.client import SunSpecModbusValueError
 from communication.pyiec61850_server import IedServer
 
 
@@ -48,8 +49,6 @@ import interface
 iec61850 = helper.import_libiec61850()
 
 logger = logging.getLogger(f"main_logger.{__name__}")
-logger.propagate = False
-
 
 
 """
@@ -178,38 +177,69 @@ def control_watchdog_worker(ied_manager: IedManager):
     ied_config = ied_manager.ied_config
     time_manager = ied_manager.time_manager
     failed_attempts = {}
-    MAX_ALLOWED_FAILURES = 5
+    MAX_ALLOWED_FAILURES = 3
 
     while ied_manager.status < 4:
         try:
-            # Drop timeout to 0.05s so it reacts instantly when items arrive
             dbf = DataBuffer.control_queue.get(block=True, timeout=0.05)
             tic = time.perf_counter()
 
+            # Bypass ONLY if max network/transient retries were reached
             if failed_attempts.get(dbf.id, 0) >= MAX_ALLOWED_FAILURES:
-                logger.warning(f"DO {dbf.id} exceeded max failures ({MAX_ALLOWED_FAILURES}). Bypassing.")
+                logger.warning(
+                    f"DO {dbf.id} exceeded max failures ({MAX_ALLOWED_FAILURES}). Bypassing."
+                )
                 DataBuffer.control_queue.task_done()
                 continue
 
-            # Execute control action
-            is_success = exec_control(ied_config, dbf)
+            # Execute SunSpec control action
+            is_success, err_type, committed_val = exec_control(ied_config, dbf)
 
             if is_success:
                 logger.info(f'Successfully applied control action for DO {dbf.id}')
+
+                # 1. Update Python DataBuffer memory to match committed value
+                dbf.value_external = committed_val
+                dbf._value_iec61850 = committed_val
+
+                # 2. Update previous valid value so future rollbacks target this newly confirmed setpoint
+                dbf.prev_value_iec61850 = committed_val
+
+                # 3. ALWAYS force SWIG C-stack update to prevent update_da_worker from re-reading stale C memory
+                try:
+                    dbf.update_da_mms_swig_attr(committed_val)
+                except Exception as err:
+                    logger.error(f"Failed to update MMS SWIG attribute for {dbf.id}: {err}")
+
                 dbf.records.control_count += 1
                 failed_attempts[dbf.id] = 0
+
+            elif err_type == 'VALUE_ERROR':
+                # FATAL VALUE ERROR: Roll back C-stack + Python memory & reset retry counter
+                logger.warning(
+                    f"Fatal value error on DO {dbf.id} with value {dbf.value_external}."
+                )
+
+                # Roll back memory AND C-level MMS stack
+                dbf.rollback_to_prev_value()
+
+                # Reset failure counter so DO is not bypassed
+                failed_attempts[dbf.id] = 0
             else:
+                # TRANSIENT / NETWORK FAILURE: Increment counter
                 failed_attempts[dbf.id] = failed_attempts.get(dbf.id, 0) + 1
-                logger.error(f'Failed control for DO {dbf.id}. Failure count: {failed_attempts[dbf.id]}')
+                logger.error(
+                    f'Failed control for DO {dbf.id}. Failure count: {failed_attempts[dbf.id]}'
+                )
 
             DataBuffer.control_queue.task_done()
             time_manager.t_ctrl_wd_worker = time.perf_counter() - tic
 
         except queue.Empty:
-            # Yield CPU briefly so libiec61850 C-callbacks & network threads get GIL access
             time.sleep(0.001)
         except Exception as err:
             logger.exception(f'Control watchdog handler error: {err}')
+
 
 
 def ied_routine(ied_manager: IedManager):

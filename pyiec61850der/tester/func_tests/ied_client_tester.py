@@ -389,10 +389,10 @@ def connect_multi_server(ied_server_info:dict, ied_name:str, ld_name:str) -> dic
         ied_clients.update({idx: ied_client})
 
     obj_ref_str = f'{ied_name}_{ld_name}/MMXU0.OutWSet.setMag.f'
-    val = 0.95
+    val = 100
     for conn_obj in ied_clients.items():
         code = iec61850.IedConnection_writeFloatValue(conn_obj, obj_ref_str, iec61850.IEC61850_FC_SP, val)
-        val -= 0.05
+        val -= 5
 
     obj_ref_str = f'{ied_name}_{ld_name}/MMXU0.OutWSet.setMag.f'
     for conn_obj in ied_clients.values():

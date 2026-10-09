@@ -53,34 +53,8 @@ BoolTypes = helper.StdDataType.BoolTypes
 
 # Comprehensive C-SWIG IEC61850 function dispatch mapping: (update_fn, get_fn)
 # This is only a subset of all possible IEC 61850 data types
-MMS_TYPE_DISPATCH = {
-    float: (
-        iec61850.IedServer_updateFloatAttributeValue,
-        iec61850.IedServer_getFloatAttributeValue,
-    ),
-    int: (
-        iec61850.IedServer_updateInt32AttributeValue,
-        iec61850.IedServer_getInt32AttributeValue,
-    ),
-    bool: (
-        iec61850.IedServer_updateBooleanAttributeValue,
-        iec61850.IedServer_getBooleanAttributeValue,
-    ),
-    str: (
-        iec61850.IedServer_updateVisibleStringAttributeValue,
-        iec61850.IedServer_getStringAttributeValue,
-    ),
-    "time": (
-        iec61850.IedServer_updateUTCTimeAttributeValue,
-        iec61850.IedServer_getUTCTimeAttributeValue,
-    ),
-    "int64": (
-        iec61850.IedServer_updateInt64AttributeValue,
-        iec61850.IedServer_getInt64AttributeValue,
-    ),
-}
 
-def _coerce_external_value(data_buffer: DataBuffer, addr: str, verbose: bool) -> None:
+def _coerce_external_value(data_buffer: DataBuffer, addr: str) -> None:
     """Enhanced CDC-aware type coercion for IEC 61850 attributes."""
     val = data_buffer.value_external
     cdc = data_buffer.iec61850_do.cdc.upper() if data_buffer.iec61850_do.cdc else ""
@@ -154,33 +128,16 @@ def update_da_worker(ied_server: IEC61850ServerMMS,
     q_flag = data_buffer.value_quality
 
     # 1. CDC & Address Aware Coercion
-    _coerce_external_value(data_buffer, addr, verbose)
+    _coerce_external_value(data_buffer, addr)
     val = data_buffer.value_external
 
-    # 2. Determine target SWIG dispatch key
-    if isinstance(val, (bool, np.bool_)):
-        target_key = bool
-        val = bool(val)
-    elif isinstance(val, (int, np.integer)):
-        # Route large integers (>32-bit) to int64 if needed
-        target_key = "int64" if val.bit_length() > 31 else int
-        val = int(val)
-    elif isinstance(val, (float, np.floating)):
-        target_key = float
-        val = float(val)
-    elif isinstance(val, str):
-        target_key = str
-    elif isinstance(val, (bytes, bytearray)):
-        target_key = bytes
-        val = bytes(val)
-    else:
-        target_key = None
+    val, target_key = data_buffer.examine_iec61850_data_by_type(val)
 
     # 3. Apply MMS SWIG update
     da_attr = iec61850.toDataAttribute(da_obj)
 
-    if target_key in MMS_TYPE_DISPATCH:
-        update_fn, get_fn = MMS_TYPE_DISPATCH[target_key]
+    if target_key in data_buffer.MMS_TYPE_DISPATCH:
+        update_fn, get_fn = data_buffer.MMS_TYPE_DISPATCH[target_key]
         update_fn(ied_server_swig_obj, da_attr, val)
         data_buffer.value_iec61850 = get_fn(ied_server_swig_obj, da_attr)
     else:
@@ -266,13 +223,14 @@ def exec_control(ied_config: IedConfig, data_buffer:DataBuffer):
         # no handling
         pass
     elif data_buffer.data_source == 'sunspec':
-        is_success = sunspec.exec_sunspec_control(ied_config.interface.active_sunspec_mappings, data_buffer,
-                                                  ied_config.interface.is_sunspec_force_enable)
+        is_success, err, committed_val = sunspec.exec_sunspec_control(ied_config.interface.active_sunspec_mappings,
+                                                                  data_buffer, ied_config.interface.is_sunspec_force_enable)
+        return is_success, err, committed_val
 
     else:
         logger.warning(f'Unknown data source {data_buffer.data_source}')
 
-    return is_success
+    return is_success, None, None
 
 
 

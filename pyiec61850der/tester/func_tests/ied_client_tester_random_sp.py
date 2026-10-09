@@ -57,7 +57,6 @@ from settings import helper
 helper.set_env_libiec61850()
 iec61850 = helper.import_libiec61850()
 
-
 @dataclass
 class CycleRecord:
     """Structure to hold telemetry, metadata, and responses for a single cycle."""
@@ -79,7 +78,7 @@ def get_left_skewed_value(peak:int=50, bounds=(50,100)) -> float:
     with the peak concentration (mode) at exactly 60.
     """
     val = np.random.triangular(left=bounds[0], mode=peak, right=bounds[1])
-    return round(val, 3)
+    return round(np.float64(val), 5)
 
 
 def establish_connection(connection, hostname: str, tcp_port: int):

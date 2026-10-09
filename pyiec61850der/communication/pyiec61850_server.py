@@ -952,26 +952,38 @@ class IEC61850ServerMMS(object):
 
         # NOTE: onc could consider add topology check before running the server.
         # Currently, we assume the data model is okay
-        self.ied_server.swig_obj = iec61850.IedServer_create(self.data_model.swig_obj)
+        swig_obj = iec61850.IedServer_create(self.data_model.swig_obj)
         logger.info('The IED server has been created')
-        iec61850_server = self.ied_server.swig_obj
 
-        return iec61850_server
+        self.ied_server.swig_obj = swig_obj
+        DataBuffer.ied_server_swig_obj = swig_obj
+
+        logger.info('The IED server swig object has been attached to the DataBuffer class')
+
+        return swig_obj
 
     def destroy_ied_server(self):
         """Cleanly stop and destroy libiec61850 C objects."""
-        if hasattr(self, 'ied_server_swig_obj') and self.ied_server_swig_obj is not None:
+
+        swig_obj = getattr(self.ied_server, 'swig_obj', None) if hasattr(self, 'ied_server') else None
+
+        if swig_obj is not None:
             try:
                 # 1. Stop TCP server from accepting new connections / stop worker threads
-                iec61850.IedServer_stop(self.ied_server_swig_obj)
+                iec61850.IedServer_stop(swig_obj)
 
                 # 2. Free C memory allocated for the IED server instance
-                iec61850.IedServer_destroy(self.ied_server_swig_obj)
-                self.ied_server_swig_obj = None
+                iec61850.IedServer_destroy(swig_obj)
 
                 logger.info("IEC 61850 C-Server stopped and destroyed cleanly.")
             except Exception as e:
                 logger.error(f"Failed to destroy C-Server object: {e}")
+            finally:
+                # Clear reference so repeated calls or checks evaluate to None
+                self.ied_server.swig_obj = None
+                DataBuffer.ied_server_swig_obj = None
+        else:
+            logger.warning("destroy_ied_server called, but no active C-Server object was found.")
 
     def dump_invalid_char(self, obj_level:str='LD', obj_str:str='dummy'):
         """

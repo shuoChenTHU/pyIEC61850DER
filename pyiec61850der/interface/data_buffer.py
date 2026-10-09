@@ -39,6 +39,7 @@ FloatTypes = helper.StdDataType.FloatTypes
 IntTypes = helper.StdDataType.IntTypes
 BoolTypes = helper.StdDataType.BoolTypes
 
+iec61850 = helper.import_libiec61850()
 
 
 logger = logging.getLogger(f"main_logger.{__name__}")
@@ -103,6 +104,33 @@ class DataBuffer(KwargsHandler):
 
     # the attr control_queue is SHARED across ALL instances of DataBuffer automatically.
     control_queue = queue.Queue()
+    ied_server_swig_obj = None  # the interconnect to the runtime IED server
+    MMS_TYPE_DISPATCH = {
+        float: (
+            iec61850.IedServer_updateFloatAttributeValue,
+            iec61850.IedServer_getFloatAttributeValue,
+        ),
+        int: (
+            iec61850.IedServer_updateInt32AttributeValue,
+            iec61850.IedServer_getInt32AttributeValue,
+        ),
+        bool: (
+            iec61850.IedServer_updateBooleanAttributeValue,
+            iec61850.IedServer_getBooleanAttributeValue,
+        ),
+        str: (
+            iec61850.IedServer_updateVisibleStringAttributeValue,
+            iec61850.IedServer_getStringAttributeValue,
+        ),
+        "time": (
+            iec61850.IedServer_updateUTCTimeAttributeValue,
+            iec61850.IedServer_getUTCTimeAttributeValue,
+        ),
+        "int64": (
+            iec61850.IedServer_updateInt64AttributeValue,
+            iec61850.IedServer_getInt64AttributeValue,
+        ),
+    }
 
     def __init__(self, **kwargs):
         # 1. Initialize a Reentrant Lock per buffer instance
@@ -127,6 +155,7 @@ class DataBuffer(KwargsHandler):
         # NOTE: this value name could be generalised for all types of communication protocols, not just IEC 61850
         self.value_external: float | int | str| None = None
         self._value_iec61850: float | int | None = None  # make value_iec61850 a property
+        self.prev_value_iec61850: float | int | None = None  # a placeholder for control value roll back
         self.value_quality: int = 2  # see quality flags in docstring, use invalid state unless valid value available
         self.is_monitor: bool = False
         self.is_control: bool = False
@@ -188,21 +217,99 @@ class DataBuffer(KwargsHandler):
 
     @value_iec61850.setter
     def value_iec61850(self, new_val):
-        old_val = self._value_iec61850
-        self._value_iec61850 = new_val
-
         if not self.is_control or not self.is_initialized:
+            self._value_iec61850 = new_val
             return
 
-        # Explicitly check for data differences
+        # Check for actual value change BEFORE updating any internal attributes
         if self.check_value_change(self.value_external, new_val):
             logger.info('************************************')
             logger.info('***  control command received ******')
             logger.info('************************************')
             logger.info(
-                f'The value of control parameter {self.id} has been changed: {self.value_external,} -> {new_val}')
+                f'The value of control parameter {self.id} has been changed: {self.value_external} -> {new_val}'
+            )
+
+            # 1. SAVE PREVIOUS VALID STATE ONLY ON ACTUAL CHANGE
+            # Save current value_external (the last known valid state applied to Modbus)
+            self.prev_value_iec61850 = self.value_external
+
+            # 2. Update memory representations
+            self._value_iec61850 = new_val
             self.value_external = new_val
-            self.control_queue.put(self)
+
+            # 3. Clear stale commands and queue fresh task
+            self.flush_stale_controls()
+            DataBuffer.control_queue.put(self)
+        else:
+            # If no actual setpoint change occurred, just update the property silently
+            self._value_iec61850 = new_val
+
+    @staticmethod
+    def examine_iec61850_data_by_type(val):
+        # 2. Determine target SWIG dispatch key
+        if isinstance(val, (bool, np.bool_)):
+            target_key = bool
+            val = bool(val)
+        elif isinstance(val, (int, np.integer)):
+            # Route large integers (>32-bit) to int64 if needed
+            target_key = "int64" if val.bit_length() > 31 else int
+            val = int(val)
+        elif isinstance(val, (float, np.floating)):
+            target_key = float
+            val = float(val)
+        elif isinstance(val, str):
+            target_key = str
+        elif isinstance(val, (bytes, bytearray)):
+            target_key = bytes
+            val = bytes(val)
+        else:
+            target_key = None
+
+        return val, target_key
+
+    def update_da_mms_swig_attr(self, value):
+        da_obj = self.iec61850_do.obj_ref_map.get("monitor_da")
+        da_attr = iec61850.toDataAttribute(da_obj)
+
+        value, data_type = self.examine_iec61850_data_by_type(value)
+        update_fn, get_fn = self.MMS_TYPE_DISPATCH[data_type]
+        update_fn(self.ied_server_swig_obj, da_attr, value)
+
+    def rollback_to_prev_value(self):
+        """
+        Rolls back internal memory AND the C-level IEC 61850 attribute buffer
+        to the last known valid setpoint after a hardware write failure.
+        """
+        prev_val = getattr(self, 'prev_value_iec61850', 100.0)
+        logger.warning(
+            f"Rolling back DO {self.id} memory and MMS C-stack from {self.value_external} to {prev_val}"
+        )
+
+        # 1. Roll back Python memory states
+        self.value_external = prev_val
+        self._value_iec61850 = prev_val
+
+        # 2. Synchronize C-level MMS Stack attribute (pyiec61850 wrapper)
+        self.update_da_mms_swig_attr(prev_val)
+
+        # 3. Clear pending tasks for this DO from the control queue
+        self.flush_stale_controls()
+
+    def flush_stale_controls(self):
+        """Purges all remaining queued control tasks for do_id."""
+        temp_items = []
+        while not DataBuffer.control_queue.empty():
+            try:
+                item = DataBuffer.control_queue.get_nowait()
+                if getattr(item, 'id', None) != self.iec61850_do.id:
+                    temp_items.append(item)
+                DataBuffer.control_queue.task_done()
+            except queue.Empty:
+                break
+
+        for item in temp_items:
+            DataBuffer.control_queue.put(item)
 
     @property
     def time_series(self):
@@ -641,11 +748,11 @@ class DataBuffer(KwargsHandler):
         """
 
         is_updated = False
-        source_val_round = helper.round_up_val(source_val, 4)
-        iec61850_val_round = helper.round_up_val(iec61850_val, 4)
+        # source_val_round = helper.round_up_val(source_val, 4)
+        # iec61850_val_round = helper.round_up_val(iec61850_val, 4)
 
-        if not np.isnan(source_val_round * iec61850_val_round):
-            if abs(iec61850_val - source_val) > 1e-6:
+        if not np.isnan(source_val * iec61850_val):
+            if not np.isclose(iec61850_val, source_val):
                 # logger.info(f'Detected change in the control value; valSource: {valSource}, valIEC61850 {valIEC61850}')
                 is_updated = True
         else:
