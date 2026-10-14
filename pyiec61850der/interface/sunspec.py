@@ -133,9 +133,8 @@ def init_sunspec_interface(ied_manager: 'IedManager'):
     :return:
     """
 
-
     parse_mapping(ied_manager)
-    update_mapping_by_scan(ied_manager)
+    update_mapping_by_initial_scan(ied_manager)
 
 def parse_mapping(ied_manager: 'IedManager'):
     """
@@ -377,7 +376,7 @@ def export_updated_df_mapping(df_updated: DataFrame, path_output:str, idx_device
     df_updated.to_excel(path_output)
 
 
-def update_mapping_by_scan(ied_manager: 'IedManager'):
+def update_mapping_by_initial_scan(ied_manager: 'IedManager'):
     """
     This function initializes a sunspec connection to the server via ModbusTCP. Meanwhile it updates the interface
     configuration in the vIED lookup table. All sunspec parameters that deliver measurements or status information
@@ -388,7 +387,6 @@ def update_mapping_by_scan(ied_manager: 'IedManager'):
 
     Currently the update and export of sunspec mapping and vIED lookup mapping are performed once per device.
 
-    TODO: could it be more beneficial to update and export only once after the entire loop?
 
     TODO: when indexing the DA ref, only empty list and list with length 1 are considered, because
         each DA should have an unique mms_addr. But duplicated mms_addr could still occur due to
@@ -399,6 +397,11 @@ def update_mapping_by_scan(ied_manager: 'IedManager'):
     # TODO: check whether it would be much more efficient to operate directly on the original dataframe
     df_mapping = copy.deepcopy(ied_config.interface.df_sunspec_mapping)
     df_lookup = copy.deepcopy(ied_config.interface.df_lookup)
+
+    # Initialize tracking list on ied_manager
+    # TODO: this introduces unexpected attr, may cause pydantic error
+    if not hasattr(ied_manager, 'pending_sunspec_devices'):
+        ied_manager.pending_sunspec_devices = []
 
     for idx_device, key in enumerate(ied_config.der.der_dicts['PV']):
         logger.info('-------------------------------------------------------------------')
@@ -416,14 +419,36 @@ def update_mapping_by_scan(ied_manager: 'IedManager'):
                            })
 
         # termination criteria
-        [is_connected, conn_obj] = connect_sunspec_server(slave_id, ipaddr, port)
-        if not is_connected:
-            logger.warning(f'No connection to the sunspec host {ipaddr}:{port}, skip to the next sunspec device.')
-            continue
+        [is_connected, conn_obj] = connect_sunspec_server(ied_manager.SUNSPEC_CONN_REGISTRY, slave_id, ipaddr, port)
 
-        logger.info(f'Trigger sunspec data model scan for device {ipaddr}:{port}.')
-        if not scan_sunspec_model(conn_obj):
-            logger.warning(f'Sunspec data model scan failed, skip to the next sunspec device.')
+        # === OFFLINE AT STARTUP HANDLER ===
+        if not is_connected or not scan_sunspec_model(conn_obj):
+            logger.warning(
+                f"SunSpec host {ipaddr}:{port} (Device {idx_device}) offline during startup. "
+                f"Adding to pending background scan queue."
+            )
+
+            # Check if an entry with identical connection details is already queued
+            is_already_pending = any(
+                dev['ip_addr'] == ipaddr and dev['slave_id'] == slave_id and dev['port'] == port
+                for dev in ied_manager.pending_sunspec_devices
+            )
+
+            # Store pending device configuration for the refresher worker
+            if not is_already_pending:
+                ied_manager.pending_sunspec_devices.append({
+                    'idx_device': idx_device,
+                    'key': key,
+                    'ip_addr': ipaddr,
+                    'slave_id': slave_id,
+                    'port': port,
+                    'conn_config': conn_config,
+                    'conn_obj': conn_obj
+                })
+            else:
+                logger.info(
+                    f"SunSpec host {ipaddr}:{port} is already present in pending_sunspec_devices, skipping duplicate.")
+
             continue
 
         para_indices = df_mapping.loc[df_mapping['LD'] == key].index.to_list()
@@ -459,6 +484,109 @@ def update_mapping_by_scan(ied_manager: 'IedManager'):
                                 ied_config.interface.path_lookup)
 
 
+def update_mapping_for_pending_devices(ied_manager: 'IedManager', stop_event: threading.Event = None) -> None:
+    """
+    Attempts late initial scanning, lookup table updates, and DataBuffer binding
+    for SunSpec devices that were offline during startup.
+    """
+    if not hasattr(ied_manager, 'pending_sunspec_devices') or not ied_manager.pending_sunspec_devices:
+        return
+
+    logger.info("Checking pending SunSpec devices for late startup initialization...")
+
+    ied_config = ied_manager.ied_config
+    df_mapping = copy.deepcopy(ied_config.interface.df_sunspec_mapping)
+    df_lookup = copy.deepcopy(ied_manager.ied_server.df_lookup)
+
+    still_pending = []
+    has_successful_initialization = False
+
+    for dev_info in ied_manager.pending_sunspec_devices:
+        if (stop_event and stop_event.is_set()) or not ied_manager.is_running:
+            logger.info("Abort signal received while processing pending SunSpec devices.")
+            still_pending.extend([dev for dev in ied_manager.pending_sunspec_devices if dev not in still_pending])
+            break
+
+        idx_device = dev_info['idx_device']
+        key = dev_info['key']
+        ipaddr = dev_info['ip_addr']
+        port = dev_info['port']
+        conn_config = dev_info['conn_config']
+        conn_obj = dev_info['conn_obj']
+
+        logger.info('-------------------------------------------------------------------')
+        logger.info(f"Attempting late SunSpec scan for pending device {idx_device} ({ipaddr}:{port})...")
+
+        # 1. Probe TCP socket availability
+        if not safe_reconnect_sunspec(conn_obj):
+            logger.warning(f"Pending SunSpec host {ipaddr}:{port} still unreachable. Retrying next cycle.")
+            still_pending.append(dev_info)
+            continue
+
+        try:
+            # 2. Perform SunSpec model scan
+            if not scan_sunspec_model(conn_obj):
+                logger.warning(f"SunSpec model scan failed for {ipaddr}:{port}. Retrying next cycle.")
+                still_pending.append(dev_info)
+                continue
+
+            # Reuse existing active df_mapping filtered for this Logical Device
+            para_indices = df_mapping.loc[df_mapping['LD'] == key].index.to_list()
+            if not para_indices:
+                logger.warning(f"SunSpec mapping returned an empty parameter list for {key}, skipping.")
+                continue
+
+            # 3. Perform active parameter scan & update lookup table
+            df_active_sunspec = scan_active_sunspec_parameter(
+                df_mapping, para_indices, conn_obj, ied_config.interface.is_keep_none
+            )
+            ied_config.interface.active_sunspec_mappings.append(df_active_sunspec)
+
+            df_lookup_updated = update_df_lookup_by_mapping(
+                df_lookup, df_active_sunspec, conn_obj, conn_config
+            )
+
+            # 4. Export updated device mapping
+            export_updated_df_mapping(
+                df_active_sunspec, ied_config.interface.path_sunspec_mapping_export, idx_device
+            )
+
+            # 5. Set up thread lock & timeout, then assign connection handle to DataBuffers
+            conn_obj.timeout = 5.0
+            if not hasattr(conn_obj, 'modbus_lock') or conn_obj.modbus_lock is None:
+                conn_obj.modbus_lock = threading.Lock()
+
+            assign_conn_to_data_buffers(
+                ied_manager.ied_server, df_lookup_updated, df_active_sunspec, conn_obj, conn_config
+            )
+
+            df_lookup = df_lookup_updated
+            has_successful_initialization = True
+            logger.info(f"Late SunSpec initialization complete for device {idx_device} ({ipaddr}:{port}).")
+            logger.info('-------------------------------------------------------------------\n')
+
+        except Exception as scan_err:
+            logger.error(f"Failed late initialization for SunSpec device {ipaddr}:{port}: {scan_err}")
+            still_pending.append(dev_info)
+
+    # Reassign queue with unresolved devices
+    ied_manager.pending_sunspec_devices = still_pending
+
+    # 6. Synchronize global lookup table, data sources, and re-initialize DataBuffers
+    if has_successful_initialization and not df_lookup.equals(ied_manager.ied_server.df_lookup):
+        ied_manager.ied_server.df_lookup = df_lookup
+
+        # Correctly call get_active_do_in_lookup() which updates df_lookup_active internally
+        ied_manager.ied_server.get_active_do_in_lookup()
+
+        ied_manager.data_sources = list(ied_manager.ied_server.df_lookup['data_source'].unique())
+
+        export_updated_df_lookup(
+            df_lookup, ied_config.interface.is_force_overwrite, ied_config.interface.path_lookup
+        )
+
+    return has_successful_initialization
+
 """
 =======================================================================
 =================        SUNSPEC CLIENT FUNCTIONS     =================
@@ -488,70 +616,79 @@ def sunspec_scanner(idx: int, conn_obj: SunSpecModbusClientDeviceTCP):
         logger.info(f"Scanning SunSpec connection object at index {idx} (No lock found)...")
         single_sunspec_scanner(idx, conn_obj)
 
-def connect_sunspec_server(slave_id:int=1,
-                           ip_addr:str= '192.168.1.1',
-                           port:int=502) -> tuple[bool, SunSpecModbusClientDeviceTCP]:
+def connect_sunspec_server(SUNSPEC_CONN_REGISTRY: dict,
+                           slave_id: int,
+                           ip_addr: str,
+                           port: int) -> tuple[bool, SunSpecModbusClientDeviceTCP]:
     """
-    It checks the availability of the configured sunspec server. If the server exists and can be connected,
-    then move on to an initial reading and update the virtual IED lookup table accordingly.
-
-    Otherwise, return a none object.
-
-    Parameters
-    ----------
-    slave_id: slave ID of the PV inverter, 1 as default
-    ip_addr: IP address of the PV inverter, '192.168.1.1' as default
-    port: TCP port of the PV inverter, 502 as default
-
-    Returns
-    -------
-    is_connected: a bool flag that indicating the current health status of the sunspec connection
-    sunspec_conn: the newly established sunspec connection object
-
+    Returns a cached, single-instance SunSpec connection object for a given IP/port/slave_id.
     """
 
-    is_connected: bool = False
-    sunspec_conn: SunSpecModbusClientDeviceTCP | None = None
+    key = (ip_addr, int(port), int(slave_id))
 
+    if key in SUNSPEC_CONN_REGISTRY:
+        conn_obj = SUNSPEC_CONN_REGISTRY[key]
+        # Verify socket health before returning cached handle
+        if keep_alive(conn_obj):
+            return True, conn_obj
+        else:
+            # Reconnect dead socket on existing object
+            try:
+                conn_obj.close()
+            except Exception:
+                pass
+            try:
+                conn_obj.connect()
+                return True, conn_obj
+            except Exception as err:
+                logger.warning(f"Failed to reconnect cached SunSpec object for {ip_addr}:{port}: {err}")
+                return False, conn_obj
+
+    # Create new connection object if not in registry
     try:
-        d = client.SunSpecModbusClientDeviceTCP(slave_id, ip_addr, port)
-        d.connect()
-        is_connected = True
-        sunspec_conn = d
-        logger.info(f'Connected to the sunspec server {ip_addr}')
-    except ModbusClientError as err:  # most probably ModbusClientError
-        logger.exception(f'The configured sunspec server {ip_addr} is not available')
-        logger.exception(err)
+        conn_obj = client.SunSpecModbusClientDeviceTCP(slave_id=slave_id, ipaddr=ip_addr, ipport=port)
+        conn_obj.connect()
+        SUNSPEC_CONN_REGISTRY[key] = conn_obj
+        return True, conn_obj
     except Exception as err:
-        logger.exception('unexpected sunspec connection error, using profiles instead of real-time data')
-        logger.exception(err)
-    return is_connected, sunspec_conn
+        logger.error(f"Failed to create SunSpec connection to {ip_addr}:{port}: {err}")
+        # Store uninitialized object in registry so late-scans use the same handle
+        conn_obj = client.SunSpecModbusClientDeviceTCP(slave_id=slave_id, ipaddr=ip_addr, ipport=port)
+        SUNSPEC_CONN_REGISTRY[key] = conn_obj
+        return False, conn_obj
 
-def reconnect_sunspec_server(sunspec_conn:SunSpecModbusClientDeviceTCP):
+def safe_reconnect_sunspec(conn_obj) -> bool:
     """
-    This function can be used to reconnect to the sunspec server using the established TCP device object. The
-    main advantage of calling this function is that one would not pass all the device info as arguments.
-
-    Parameters
-    ----------
-    sunspec_conn: the connection object to the sunspec server of interest
-
-    Returns
-    -------
-    is_reconnected: a bool flag that indicating the status of the sunspec connection
+    Safely tears down stale/dead TCP sockets and establishes a fresh connection
+    without re-scanning SunSpec models.
     """
+    # 1. Test live Modbus socket responsiveness
 
-    is_reconnected = False
     try:
-        sunspec_conn.connect()
-        is_reconnected = True
-        logger.info('The sunspec server is successfully reconnected.')
-    except ModbusClientError:
-        logger.exception('Sunspec Server reconnection failed, ModbusClientError')
-    except Exception as e:
-        logger.exception('unexpected sunspec connection error, using profiles instead of real-time data')
-        logger.exception(e)
-    return is_reconnected
+        is_alive = keep_alive(conn_obj)
+    except Exception:
+        is_alive = False
+
+    if is_alive:
+        return True  # Socket is healthy and responsive
+
+    # 2. Socket is dead or unbound (0.0.0.0) -> Force Teardown
+    try:
+        if hasattr(conn_obj, 'close'):
+            conn_obj.close()
+        elif hasattr(conn_obj, 'disconnect'):
+            conn_obj.disconnect()
+    except Exception as err:
+        logger.warning(f"Error closing dead SunSpec socket: {err}")
+
+    # 3. Attempt fresh TCP socket connection
+    try:
+        conn_obj.connect()
+        # Verify the new connection works
+        return keep_alive(conn_obj)
+    except Exception as err:
+        logger.error(f"Failed to reconnect SunSpec device: {err}")
+        return False
 
 def keep_alive(sunspec_conn: SunSpecModbusClientDeviceTCP) -> bool:
     """
@@ -1168,6 +1305,5 @@ def find_index_in_df(df: DataFrame, col_name: str, value: any) -> int | None:
         if len(idx) > 1:
             logger.warning(f'Found duplicated entries in the column {col_name}, take the first appearance')
         return idx[0]
-
 
 

@@ -51,9 +51,11 @@ from datetime import datetime
 import os
 import time
 import numpy as np
-from settings import helper
 
 # Initialize library
+# NOTE: to remove the dependency on pyIEC61850DER, put the .py and .pyd files of libIEC61850 in the same folder and
+# comment out the 3 lines below.
+from settings import helper
 helper.set_env_libiec61850()
 iec61850 = helper.import_libiec61850()
 
@@ -74,11 +76,11 @@ class CycleRecord:
 
 def get_left_skewed_value(peak:int=50, bounds=(50,100)) -> float:
     """
-    Generates a left-skewed float value between 10 and 100
-    with the peak concentration (mode) at exactly 60.
+    Generates a left-skewed float value between predefined bounds.
+    with the peak concentration (mode) at exactly configured value.
     """
     val = np.random.triangular(left=bounds[0], mode=peak, right=bounds[1])
-    return round(np.float64(val), 5)
+    return round(np.float64(val), 2)
 
 
 def establish_connection(connection, hostname: str, tcp_port: int):
@@ -182,8 +184,11 @@ def append_to_csv(filepath: str, record: CycleRecord):
 
 
 def main():
-    hostname = "192.168.170.83"
-    tcp_port = 60850
+    # hostname = "192.168.170.83"
+    # tcp_port = 60850
+    hostname = "127.0.0.1"
+    tcp_port = 61850
+
     t_wait = 60
     t_write_interval = 30
 
@@ -217,7 +222,7 @@ def main():
                 continue  # Restart loop immediately once physical link is back
 
             # 2. Control Cycle
-            sp_target = get_left_skewed_value(30, (10,100))
+            sp_target = get_left_skewed_value(20, (0,100))
 
             # Write Setpoint (SP)
             write_success = write_float_value(connection, write_obj_sp, sp_target, iec61850.IEC61850_FC_SP)

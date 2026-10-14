@@ -313,7 +313,7 @@ def init_virtual_ied_interfaces(ied_manager: IedManager):
     runtime.init_data_buffers(ied_config, ied_server, verbose=True)
 
     # NOTE: update data_buffer once to avoid unexpected control immediately after the initialization
-    runtime.update_data_buffers(ied_manager, verbose=True)
+    runtime.sync_dbf_source_values(ied_manager)
 
     # unmute the silent control executors by setting is_initialized True
     for dbf in ied_server.data_buffers.values():

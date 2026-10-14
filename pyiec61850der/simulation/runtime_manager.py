@@ -16,6 +16,7 @@ import pandas as pd
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
+from sunspec2.modbus.client import  SunSpecModbusClientDeviceTCP
 
 from communication.pyiec61850_server import IedServer, IEC61850ServerMMS
 from settings.config import IedConfig
@@ -24,9 +25,11 @@ from settings.helper import rotating_logger
 from interface.influxdb import InfluxdbHandler
 import interface.sunspec as interface_sunspec
 import interface.influxdb as interface_influxdb
+import interface.runtime as interface_runtime
 
 from model import IEC61850DataModelGenerator
 from communication import pyiec61850_server
+
 
 logger = logging.getLogger(f"main_logger.{__name__}")
 
@@ -335,6 +338,8 @@ class IedManager(object):
         self.CTRL_PERIOD: float = 1.0
 
         self.HEARTBEAT_FILE = "./heartbeat"
+
+        self.SUNSPEC_CONN_REGISTRY: dict[tuple[str, int, int], SunSpecModbusClientDeviceTCP] = {}
 
 
 
@@ -645,6 +650,8 @@ class IedServiceManager:
         self.stop_event = threading.Event()
         self.threads = []
 
+        self.SUNSPEC_CONN_REGISTRY = self.ied_manager.SUNSPEC_CONN_REGISTRY
+
         num_cores = os.cpu_count() or 4
 
         # Multiply by multiplier (e.g. 1.0 or 2.0 max for ARM/Pi)
@@ -926,10 +933,10 @@ class IedServiceManager:
                 self.db_ready_event.set()  # Unblock uploads
         logger.info("InfluxDB Connection Refresher Worker stopped cleanly.")
 
-    def get_sunspec_conn_objs(self) -> list:
+    def _get_sunspec_conn_objs(self) -> list:
         """
-        Dynamically fetches the latest active SunSpec connection objects from ied_manager.
-        Returns an empty list if ied_server or df_lookup_active is not yet initialized.
+        Dynamically fetches all configured SunSpec connection objects,
+        including those currently offline or pending initial scan.
         """
         ied_server = getattr(self.ied_manager, 'ied_server', None)
         if ied_server is None:
@@ -944,19 +951,38 @@ class IedServiceManager:
         if 'data_source' not in df_lookup_active.columns or 'fieldbus_conn_obj' not in df_lookup_active.columns:
             return []
 
-        # Filter active SunSpec entries
+        # Filter active SunSpec rows
         df_lookup_sunspec = df_lookup_active.loc[df_lookup_active['data_source'] == 'sunspec']
 
-        # Drop NA / None connection objects
-        conn_objs = df_lookup_sunspec['fieldbus_conn_obj'].dropna().unique().tolist()
-        return conn_objs
+        # Extract unique connection objects (filtering out literal NaN/None values)
+        return df_lookup_sunspec['fieldbus_conn_obj'].dropna().unique().tolist()
+
+    @staticmethod
+    def sync_databuffer_conn_objs(ied_server, conn_obj, ipaddr: str, port: int, slave_id: int):
+        """
+        Ensures all DataBuffer instances matching (ipaddr, port, slave_id)
+        point to the exact same Python conn_obj memory reference.
+        """
+        for dbf in ied_server.data_buffers.values():
+            current_conn = getattr(dbf, 'fieldbus_conn_obj', None)
+            if current_conn is not None:
+                c_ip = getattr(current_conn, 'ipaddr', None)
+                c_port = getattr(current_conn, 'ipport', None)
+                c_slave = getattr(current_conn, 'slave_id', None)
+
+                if c_ip == ipaddr and c_port == port and c_slave == slave_id:
+                    # Force memory address alignment across all DataBuffers
+                    dbf.fieldbus_conn_obj = conn_obj
+
 
     def sunspec_conn_obj_refresher_worker(self):
         """
         Periodically triggers a SunSpec connection object health check and scan in the background.
+            - Fast reconnects (close + connect) for existing connections.
+            - One-time model scan ONLY if inverter was offline at startup.
         Interval:
-        - 30 minutes (1800s) during nighttime (22:00 - 04:00 UTC)
-        - 5 minutes (300s) during daytime
+            - 30 minutes (1800s) during nighttime (22:00 - 04:00 UTC)
+            - 5 minutes (300s) during daytime
         """
 
         def _is_night_time(ctime):
@@ -966,7 +992,6 @@ class IedServiceManager:
             return is_night, refresh_interval_sec
 
         logger.info("SunSpec Connection Refresher Worker active with dynamic daytime/nighttime interval.")
-
         last_refresh_time = 0.0
 
         while not self.stop_event.is_set() and self.ied_manager.status < 4:
@@ -978,7 +1003,6 @@ class IedServiceManager:
                     continue
 
                 now = time.monotonic()
-
                 # Determine dynamic interval based on current UTC time
                 is_night, refresh_interval_sec = _is_night_time(self.ied_manager.time_manager.ctime)
 
@@ -986,8 +1010,17 @@ class IedServiceManager:
                     mode_str = "Nighttime (30m interval)" if is_night else "Daytime (5m interval)"
                     logger.info(f"Triggering SunSpec connection health check ({mode_str})...")
 
-                    conn_objs = self.get_sunspec_conn_objs()
-                    logger.info(f"Found {len(conn_objs)} unique SunSpec connection objects to check.")
+                    # === LATE STARTUP SCAN FOR PENDING DEVICES ===
+                    is_device_updated = interface_sunspec.update_mapping_for_pending_devices(self.ied_manager,
+                                                                            stop_event=self.stop_event)
+                    if is_device_updated:
+                        # Re-initialize data buffer references to register new DOs
+                        # NOTE: the update mapping operation must be followed by an update_data_buffer execution to
+                        # avoid unexpected control
+                        interface_runtime.sync_dbf_source_values(self.ied_manager)
+
+                    conn_objs = self._get_sunspec_conn_objs()
+                    logger.info(f"Found {len(conn_objs)} SunSpec connection objects to manage.")
 
                     for idx, conn_obj in enumerate(conn_objs):
                         if self.stop_event.is_set() or not self.ied_manager.is_running:
@@ -997,40 +1030,34 @@ class IedServiceManager:
                         if conn_obj is None:
                             continue
 
-                        # 1. Non-disruptive Connection Guard
-                        is_healthy = False
-                        try:
-                            is_healthy = interface_sunspec.keep_alive(conn_obj)
-                        except Exception as err:
-                            logger.warning(f"Health check exception for index {idx}: {err}")
+                        # Check connection and model state
+                        is_healthy = interface_sunspec.safe_reconnect_sunspec(conn_obj)
+
+                        has_models = hasattr(conn_obj, 'models') and bool(conn_obj.models)
 
                         if is_healthy:
-                            # Check if models dictionary is populated
-                            has_models = hasattr(conn_obj, 'models') and bool(conn_obj.models)
-
+                            # 2. Trigger one-time full model scan ONLY if inverter was offline at 6 AM startup
                             if not has_models:
-                                logger.info(f"No active SunSpec models found for index {idx}. Running scanner...")
+                                logger.info(
+                                    f"Inverter at index {idx} came online! Performing initial model scan..."
+                                )
                                 try:
                                     interface_sunspec.sunspec_scanner(idx, conn_obj)
-                                except Exception as err:
-                                    logger.error(f"Error scanning SunSpec connection object index {idx}: {err}")
+
+                                    # Update df_lookup_active reference
+                                    self.ied_manager.ied_server.df_lookup_active.loc[
+                                        self.ied_manager.ied_server.df_lookup_active['data_source'] == 'sunspec',
+                                        'fieldbus_conn_obj'
+                                    ] = conn_obj
+                                    logger.info(f"Model scan complete and references updated for index {idx}.")
+                                except Exception as scan_err:
+                                    logger.error(f"Error scanning models for index {idx}: {scan_err}")
+                            else:
+                                logger.info(f"SunSpec connection index {idx} verified healthy.")
                         else:
-                            # === RECONNECTION FIX ===
                             logger.warning(
-                                f"Connection object index {idx} unreachable/unhealthy. Attempting reconnection...")
-
-                            try:
-                                if hasattr(conn_obj, 'connect'):
-                                    conn_obj.connect()
-
-                                # Reset offline flag on successful reconnection
-                                logger.info(f"Successfully reconnected SunSpec server at index {idx}!")
-
-                            except Exception as reconnect_err:
-                                logger.error(
-                                    f"Failed to reconnect SunSpec server at index {idx}: {reconnect_err}. "
-                                    f"Will retry in next refresh cycle."
-                                )
+                                f"SunSpec server at index {idx} is unreachable. Will retry in next refresh cycle."
+                            )
 
                     last_refresh_time = time.monotonic()
                     logger.info("SunSpec connection object refresh cycle completed.")

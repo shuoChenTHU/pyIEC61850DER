@@ -276,6 +276,13 @@ class DataBuffer(KwargsHandler):
         update_fn, get_fn = self.MMS_TYPE_DISPATCH[data_type]
         update_fn(self.ied_server_swig_obj, da_attr, value)
 
+    def sync_iec61850_value(self):
+        """
+        Silently updates the internal C-stack representation during routine
+        polling without triggering control queue placement.
+        """
+        self._value_iec61850 = self.value_external
+
     def rollback_to_prev_value(self):
         """
         Rolls back internal memory AND the C-level IEC 61850 attribute buffer

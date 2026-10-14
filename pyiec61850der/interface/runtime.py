@@ -140,9 +140,45 @@ def data_buffer_worker(ied_manager: IedManager, data_buffer: DataBuffer):
         msg = f'Something went wrong when updating the data_buffer {data_buffer.id}'
         logger.log_new_error(exc, msg)
 
+def sync_dbf_source_values(ied_manager: IedManager):
+    """
+    Iteratively update the measurements for the IEC 61850 server.
+    Do not trigger any control action, just silently pass the external_value to iec61850_value
+    """
 
+    logger.info('-------------------------------------------------------------------')
+    logger.info(f'Start update data buffers with these data sources: {ied_manager.data_sources}')
 
-def update_data_buffers(ied_manager: IedManager, verbose: bool = True):
+    # 2. Measurement updates
+    monitor_buffers = [db for db in ied_manager.ied_server.data_buffers.values() if db.is_monitor]
+
+    # Sequential Execution (Fastest & safest if sharing 1 or 2 Modbus sockets)
+    for data_buffer in monitor_buffers:
+        data_buffer_worker(ied_manager, data_buffer)
+
+    for data_buffer in monitor_buffers:
+        data_buffer.sync_iec61850_value()
+
+    interface_iec61850_mms.update_ied_attr(ied_manager.ied_server)
+
+    display_runtime_data(ied_manager.ied_server)
+
+def sync_dbf_mms_ctrl_values(ied_manager: IedManager):
+    """
+    Synchronizes internal DataBuffer representations with the IEC 61850 C-stack
+    by triggering control queue events or changing prev_value history.
+    """
+    server_swig_obj = ied_manager.ied_server.ied_server.swig_obj
+    for db in ied_manager.ied_server.data_buffers.values():
+        if db.is_control:
+            da_ctrl_ref = db.iec61850_do.obj_ref_map.get('control_da')
+            if da_ctrl_ref is not None:
+                val = iec61850.IedServer_getFloatAttributeValue(
+                    server_swig_obj, iec61850.toDataAttribute(da_ctrl_ref)
+                )
+                db.value_iec61850 = val  # Direct private assignment
+
+def update_data_buffers(ied_manager: IedManager):
     """
     Iteratively update the measurements for the IEC 61850 server.
     Since the cummulative processing time could cause processing time issues, let each databuffer update
@@ -161,16 +197,7 @@ def update_data_buffers(ied_manager: IedManager, verbose: bool = True):
     for data_buffer in monitor_buffers:
         data_buffer_worker(ied_manager, data_buffer)
 
-    # 3. Synchronize IEC 61850 control attribute inputs
-    for data_buffer in ied_manager.ied_server.data_buffers.values():
-        if data_buffer.is_control:
-            da_ctrl_obj_ref = data_buffer.iec61850_do.obj_ref_map.get('control_da')
-            if da_ctrl_obj_ref is not None:
-                iec61850_val = iec61850.IedServer_getFloatAttributeValue(
-                    server_swig_obj,
-                    iec61850.toDataAttribute(da_ctrl_obj_ref)
-                )
-                data_buffer.value_iec61850 = iec61850_val
+    sync_dbf_mms_ctrl_values(ied_manager)
 
     t2 = time.perf_counter() - tic
     logger.warning(f't_perf (Data Buffers Updated): {t2:.4f} s')
@@ -182,8 +209,7 @@ def update_data_buffers(ied_manager: IedManager, verbose: bool = True):
     t3 = time.perf_counter() - tic
     logger.warning(f't_perf (MMS Stack Updated): {t3:.4f} s')
 
-    if verbose:
-        display_runtime_data(ied_manager.ied_server)
+    display_runtime_data(ied_manager.ied_server)
 
 def init_data_buffer_timeseries(data_buffer: DataBuffer):
     """
