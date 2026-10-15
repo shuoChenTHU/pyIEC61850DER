@@ -685,6 +685,7 @@ def safe_reconnect_sunspec(conn_obj) -> bool:
     try:
         conn_obj.connect()
         # Verify the new connection works
+        logger.info('Try to refresh the current sunspec conn object.')
         return keep_alive(conn_obj)
     except Exception as err:
         logger.error(f"Failed to reconnect SunSpec device: {err}")
@@ -853,13 +854,14 @@ def scan_active_sunspec_parameter(df_mapping: DataFrame,
             continue
         para = df.at[idx_para, 'name']
         value = read_value_from_point(conn_obj, model_id, para)
-        if not value:
+        if value is None or (isinstance(value, float) and np.isnan(value)):
             if is_keep_none:
                 logger.warning(
-                    f'The sunspec parameter {model_id} - {para} returns None, but still keep it in the list.')
+                    f'The sunspec parameter {model_id} - {para} returns {value}, but still keep it in the list.')
             else:
                 logger.warning(
-                    f'The sunspec parameter {model_id} - {para} returns None, set it to inactive in the sunspec mapping table.')
+                    f'The sunspec parameter {model_id} - {para} returns {value}, set it to inactive in the sunspec '
+                    f'mapping table.')
                 continue
 
         df.at[idx_para, 'is_delivered'] = True

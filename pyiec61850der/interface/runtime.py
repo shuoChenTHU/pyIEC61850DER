@@ -151,12 +151,13 @@ def sync_dbf_source_values(ied_manager: IedManager):
 
     # 2. Measurement updates
     monitor_buffers = [db for db in ied_manager.ied_server.data_buffers.values() if db.is_monitor]
+    active_buffers = [db for db in ied_manager.ied_server.data_buffers.values() if db.is_control or db.is_monitor]
 
     # Sequential Execution (Fastest & safest if sharing 1 or 2 Modbus sockets)
     for data_buffer in monitor_buffers:
         data_buffer_worker(ied_manager, data_buffer)
 
-    for data_buffer in monitor_buffers:
+    for data_buffer in active_buffers:  # the sync_iec61850 action operates on all active buffers incl. control-only dbf
         data_buffer.sync_iec61850_value()
 
     interface_iec61850_mms.update_ied_attr(ied_manager.ied_server)
@@ -176,7 +177,7 @@ def sync_dbf_mms_ctrl_values(ied_manager: IedManager):
                 val = iec61850.IedServer_getFloatAttributeValue(
                     server_swig_obj, iec61850.toDataAttribute(da_ctrl_ref)
                 )
-                db.value_iec61850 = val  # Direct private assignment
+                db.value_iec61850 = val  # Invokes setter to evaluate control changes and enqueue tasks
 
 def update_data_buffers(ied_manager: IedManager):
     """
