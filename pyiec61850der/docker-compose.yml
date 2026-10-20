@@ -5,6 +5,7 @@ services:
         dockerfile: ./container/build/Dockerfile
     image: mega_sim_testing:1.0.2
     container_name: mega_sim_testing
+    stop_grace_period: 20s
     restart: 'always'
     volumes:
       - /sys:/rootfs/sys:ro

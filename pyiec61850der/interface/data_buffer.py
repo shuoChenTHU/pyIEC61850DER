@@ -496,7 +496,7 @@ class DataBuffer(KwargsHandler):
             logger.exception(exc)
             return 99
 
-    def get_current_source_value(self):
+    def get_unscaled_source_value(self):
         """
         This function passes actual values of those parameters that have been controlled by IEC 61850 clients to the corresponding data_buffer instances.
         """
@@ -517,7 +517,24 @@ class DataBuffer(KwargsHandler):
 
         return v
 
-    def update_external_value(self, val: np.number, is_init:bool=False):
+    def scale_external_value(self, val):
+        if val is None or isinstance(val, (str, bool)):
+            raise ValueError(f"Invalid value type {type(val)} for DO {self.id}, ignoring update.")
+
+        try:
+            val_scaled = float(val) * self.unit_factor * self.scaling_factor
+
+            # Check for Python/C float boundary limits
+            if not (-1e12 <= val_scaled <= 1e12):
+                raise ValueError(f"Scaled value {val_scaled} for DO {self.id} out of bounds, suppressing.")
+
+            return val_scaled
+
+        except (OverflowError, ValueError, TypeError) as err:
+            logger.error(f"Failed to scale value {val} for DO {self.id}: {err}")
+            # Keep previous valid value_external instead of letting exception crash thread
+
+    def update_external_value(self, val: np.number, is_init:bool=False, is_scale=False):
         """
         This function helps to calculate the actual value of a parameter that is frequently read from a data source. It takes the
         scaling_factor and unit_factor of the pre-configuration into account, based on that it generate the scaled value and write it to
@@ -548,7 +565,7 @@ class DataBuffer(KwargsHandler):
                 logger.debug('Got nan value from the external source, no action.')
         else:
             try:
-                val_scaled = val * self.unit_factor * self.scaling_factor
+                val_scaled = self.scale_external_value(val) if is_scale else val
 
                 if not is_valid_number(val_scaled):
                     logger.warning(f'{val_scaled} is not a number! Double check the data type, scaling_factor and unit_factor')
@@ -635,8 +652,10 @@ class DataBuffer(KwargsHandler):
         For parameters that is using a local data_active, data_buffer.data_active must have been set before the initialization.
         (which is done by calling the other function init_single_value)
 
-        For parameters that is using a influxdb data_active, it requires the attributes unit_factor, scaling_factor and limits
-        to be set during the server or interface initialization.
+        NOTE: in the most recent implementation, the scaling of data happens within the process of get_cvalue. In
+        particular for the sunspec parameters, scale factors is already considered in the reading.
+        Consequently, by default, in update_external_value we DO NOT multiply the cvalue with unit_factor nor
+        scaling_factor.
 
         Usage:
             processing.routine.update_buffer_single_val(ied_config, ied_server, data_buffer, ctime_local_str)
@@ -797,21 +816,11 @@ class DataBuffer(KwargsHandler):
         if the value change acknowledgement is not required immediately. For fast response control such as inverter
         power setpoint, it is recommended to use a
 
-        TODO: implement a fast response value change detector for the DER.
-
         The change in the parameter value is most likely triggered by an external control (e.g. from an IEC 61850
         client), or internal calculation logics.
 
         Once a value change is detected, the corresponding DataBuffer instance need to acknowledge a write or control
         action and respond to it accordingly.
-
-        Note: there is a bug in the libIEC61850 server, sometimes iec61850_val returns a 0 as value when it is  supposed
-        to be a None or nan. Currently the following check is removed. Need to check if is necessary to take it back.
-        if iec61850_val == 0:
-            pass
-
-        TODO: find out why would the IED server deliver a 0 in that case; Use other methods to handle 0 values in server
-         for None, we can not just write 0 everywhere.
         """
 
         is_updated = False
@@ -819,12 +828,11 @@ class DataBuffer(KwargsHandler):
 
         if flag >= 1:
             logger.warning(msg_map.get(flag, 'Unknown message.'))
-        elif all(isinstance(v, IntTypes) for v in (source_val, iec61850_val,)):
-            is_updated = self.check_int_change(source_val, iec61850_val)
-        elif all(isinstance(v, FloatTypes) for v in (source_val, iec61850_val,)):
+        elif all(isinstance(v, (IntTypes,FloatTypes,)) for v in (source_val, iec61850_val,)):
             is_updated = self.check_float_change(source_val, iec61850_val)
+        elif all(isinstance(v, (BoolTypes, str,)) for v in (source_val, iec61850_val,)):
+            is_updated = True if source_val != iec61850_val else False
         else:
-            # TODO: add other handlers for boolean, string, and others
-            # TODO: add an operation to overwrite iec61850 value by the source value if source is numeric
-            logger.warning('Either source or IEC 61850 value is non-numeric, can not compare')
+            logger.warning(f'{self.id}: either source or IEC 61850 value is non-numeric, can not compare')
+            logger.warning(f'IEC 61850 value: {iec61850_val}, DER source value: {source_val}')
         return is_updated

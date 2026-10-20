@@ -692,8 +692,14 @@ def write_records(write_handler: InfluxDBClient,
     assert [isinstance(item, list) for item in influx_records]
     try:
         write_api = write_handler.write_api(write_options=options)
-        write_api.write(bucket=bucket, record=influx_records)
-        return True
+        try:
+            write_api.write(bucket=bucket, record=influx_records)
+            return True
+        except RuntimeError as err:
+            if "cannot schedule new futures after shutdown" in str(err):
+                logger.debug("InfluxDB client background executor shut down during flush.")
+            else:
+                raise err
     except Exception as exc:
         logger.warning('Something went wrong when writing data to influxdb.')
         logger.exception(exc)

@@ -176,7 +176,12 @@ def control_watchdog_worker(ied_manager: IedManager):
     logger.info('Event-driven control watchdog worker thread active.')
     ied_config = ied_manager.ied_config
     time_manager = ied_manager.time_manager
-    failed_attempts = {}
+
+    # Store failure attempts on ied_manager or DataBuffer to persist across worker thread restarts
+    if not hasattr(ied_manager, 'failed_control_attempts'):
+        ied_manager.failed_control_attempts = {}
+
+    failed_attempts = ied_manager.failed_control_attempts
     MAX_ALLOWED_FAILURES = 3
 
     while ied_manager.status < 4:
@@ -187,8 +192,13 @@ def control_watchdog_worker(ied_manager: IedManager):
             # Bypass ONLY if max network/transient retries were reached
             if failed_attempts.get(dbf.id, 0) >= MAX_ALLOWED_FAILURES:
                 logger.warning(
-                    f"DO {dbf.id} exceeded max failures ({MAX_ALLOWED_FAILURES}). Bypassing."
+                    f"DO {dbf.id} exceeded max failures ({MAX_ALLOWED_FAILURES}). "
+                    f"Bypassing and syncing memory to break control loop."
                 )
+
+                dbf.value_external = dbf._value_iec61850
+                dbf.flush_stale_controls()
+
                 DataBuffer.control_queue.task_done()
                 continue
 
@@ -205,7 +215,7 @@ def control_watchdog_worker(ied_manager: IedManager):
                 # 2. Update previous valid value so future rollbacks target this newly confirmed setpoint
                 dbf.prev_value_iec61850 = committed_val
 
-                # 3. ALWAYS force SWIG C-stack update to prevent update_da_worker from re-reading stale C memory
+                # 3. Force SWIG C-stack update
                 try:
                     dbf.update_da_mms_swig_attr(committed_val)
                 except Exception as err:
@@ -219,18 +229,22 @@ def control_watchdog_worker(ied_manager: IedManager):
                 logger.warning(
                     f"Fatal value error on DO {dbf.id} with value {dbf.value_external}."
                 )
-
-                # Roll back memory AND C-level MMS stack
                 dbf.rollback_to_prev_value()
-
-                # Reset failure counter so DO is not bypassed
                 failed_attempts[dbf.id] = 0
+
             else:
                 # TRANSIENT / NETWORK FAILURE: Increment counter
                 failed_attempts[dbf.id] = failed_attempts.get(dbf.id, 0) + 1
                 logger.error(
                     f'Failed control for DO {dbf.id}. Failure count: {failed_attempts[dbf.id]}'
                 )
+
+                #  Roll back on network max failures to stop perpetual triggers ===
+                if failed_attempts[dbf.id] >= MAX_ALLOWED_FAILURES:
+                    logger.error(
+                        f'DO {dbf.id} reached max network failures. Rolling back memory state.'
+                    )
+                    dbf.rollback_to_prev_value()
 
             DataBuffer.control_queue.task_done()
             time_manager.t_ctrl_wd_worker = time.perf_counter() - tic
@@ -240,12 +254,34 @@ def control_watchdog_worker(ied_manager: IedManager):
         except Exception as err:
             logger.exception(f'Control watchdog handler error: {err}')
 
+def safe_stop_ied_services(ied_manager: IedManager, service_manager:IedServiceManager):
+    # 1. Mute/stop data updates and signal routines to halt
+    ied_manager.is_running = False
 
+    # 2. Flush remaining queued data to existing open executors
+    try:
+        service_manager.flush_all_workers()
+        logger.info("All worker queues successfully flushed.")
+    except Exception as err:
+        logger.error(f"Error while flushing worker queues: {err}")
+
+    # 3. Cleanly close network sockets (SunSpec Modbus TCP)
+    try:
+        service_manager.close_all_der_connections()
+    except Exception as err:
+        logger.error(f"Error closing SunSpec connections: {err}")
+
+    # 4. Shut down the thread/process pools once no new tasks will ever be submitted
+    try:
+        service_manager.stop_all_services()
+        logger.info("All executor pools and services shut down cleanly.")
+    except Exception as err:
+        logger.error(f"Error stopping service pools: {err}")
 
 def ied_routine(ied_manager: IedManager):
     """
     Performs the main execution routine for the IEC 61850 virtual IED application.
-        TODO: consider use the parameter time_start_trigger to trigger the server_routine, so that all containers start at the same time.
+    TODO: consider use the parameter time_start_trigger to trigger the server_routine, so that all containers start at the same time.
     """
 
     time_manager = ied_manager.time_manager
@@ -259,8 +295,8 @@ def ied_routine(ied_manager: IedManager):
     time_manager.t_interval_rt = time_manager.t_interval_data_update
 
     # 2. Instantiate and Launch Background Service Manager
-    services = IedServiceManager(ied_manager=ied_manager)
-    services.start_all_services()
+    service_manager = IedServiceManager(ied_manager=ied_manager)
+    service_manager.start_all_services()
 
     # Start watchdog worker
     watchdog_thread = threading.Thread(name='control_watchdog', target=control_watchdog_worker, args=(ied_manager,),
@@ -279,11 +315,12 @@ def ied_routine(ied_manager: IedManager):
 
     except KeyboardInterrupt:
         logger.warning('Caught KeyboardInterrupt in ied_routine, initiating graceful exit...')
+        safe_stop_ied_services(ied_manager, service_manager)
         ied_manager.status = 4
 
     finally:
-        # 4. Ensure background workers exit cleanly
-        services.stop_all_services()
+        logger.info("Initiating graceful teardown sequence...")
+        safe_stop_ied_services(ied_manager, service_manager)
 
 
 def init_virtual_ied_interfaces(ied_manager: IedManager):
@@ -367,16 +404,10 @@ def run_virtual_ied(path_config: str) -> IedManager:
 
         # 3. Handle Restart
         if ied_manager.is_restart:
-            # Force teardown of C-level IED server object & threads
-            if hasattr(ied_manager, 'service_manager') and ied_manager.service_manager:
-                try:
-                    ied_manager.service_manager.flush_all_workers()
-                except Exception as e:
-                    logger.error(f"Error during service manager pre-restart flush: {e}")
+            # FIXME: the trigger_restarter_worker is doing fine mostly, but it leads to incomplete data upload in
+            #   influxdb. So, the restart mechanism is rolled back to the scheduled container restart by exiting the
+            #   Python program and forcing the container to restart automatically.
 
-            logger.info("Executing clean process exit for Docker container restart...")
-
-            # Force teardown of C-level IED server object & threads
             try:
                 ied_manager.destroy_ied_server()
             except Exception as e:
@@ -384,10 +415,6 @@ def run_virtual_ied(path_config: str) -> IedManager:
 
             # Give TCP sockets 2 seconds to release from TIME_WAIT state
             time.sleep(2)
-
-            # FIXME: the trigger_restarter_worker is doing fine mostly, but it leads to incomplete data upload in
-            #   influxdb. So, the restart mechanism is rolled back to the scheduled container restart by exiting the
-            #   Python program and forcing the container to restart automatically.
 
             # # Re-initialize fresh C server & virtual interfaces
             # ied_manager.restart_ied_server(path_config)

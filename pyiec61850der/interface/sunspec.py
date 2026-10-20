@@ -94,12 +94,12 @@ def exec_sunspec_control(sunspec_mappings: list, data_buffer: 'DataBuffer', is_f
     if row_idx is not None:
         model_id = sunspec_mapping.at[row_idx, 'model_id']
         para = sunspec_mapping.at[row_idx, 'name']
-        val_write = data_buffer.get_current_source_value()
-
+        # val_write = data_buffer.get_unscaled_source_value()
+        cval_write = data_buffer.value_external
         try:
             # Call your existing writer logic
-            is_written, committed_val = write_value_to_inverter(data_buffer.fieldbus_conn_obj, model_id, para,
-                                                     val_write, is_force_enable)
+            is_written, committed_val = write_cvalue_to_inverter(data_buffer.fieldbus_conn_obj, model_id, para,
+                                                                 cval_write, is_force_enable)
             if is_written:
                 return True, None, committed_val
             return False, 'NETWORK_ERROR', None
@@ -326,21 +326,29 @@ def update_df_lookup_by_mapping(df_lookup: DataFrame,
         # controlDA always comes along with a monitorDA
         index = addr_to_idx_map.get(da_mms_addr, [None])[0]
 
-        if index is not None:
-            logger.debug(f'Successfully located DA {da_mms_addr} by sunspec mapping, enable sunspec data_source')
-            df.at[index, 'fieldbus_conn_obj'] = conn_obj  # object saved in the DataFrame will be of the type Series
-            df.at[index, 'data_source'] = 'sunspec'
-            df.at[index, 'is_monitor'] = True
-            df.at[index, 'fieldbus_conn_config'] = conn_config
+        if not index:
+            logger.debug(f'Cannot locate DataBuffer index for DA {da_mms_addr}')
+            continue
 
-            # check if the parameter is coming with a scale factor
-            if (helper.is_valid_number(df_active_sunspec.at[idx_para, 'factor']) and
-                    not np.isnan(df_active_sunspec.at[idx_para, 'factor'])):
-                df.at[index, 'scale_factor'] = df_active_sunspec.at[idx_para, 'factor']
-            if df_active_sunspec.at[idx_para, 'rw_access'] == 'RW':
-                df.at[index, 'is_control'] = True
+        logger.debug(f'Successfully located DA {da_mms_addr} by sunspec mapping, enable sunspec data_source')
+        df.at[index, 'fieldbus_conn_obj'] = conn_obj  # object saved in the DataFrame will be of the type Series
+        df.at[index, 'data_source'] = 'sunspec'
+        df.at[index, 'is_monitor'] = True
+        df.at[index, 'fieldbus_conn_config'] = conn_config
+
+        # check if the sunspec parameter comes with a scale factor
+        model_id = int(df_active_sunspec.loc[idx_para, 'model_id'])
+        param_name = str(df_active_sunspec.loc[idx_para, 'name'])
+        fallback_sf = df_active_sunspec.loc[idx_para, 'factor']
+        calculated_sf = extract_sunspec_dynamic_scale_factor(conn_obj, model_id, param_name, fallback_sf)
+
+        if abs(calculated_sf - 1.0) > 1e-5:
+            df.at[index, 'scale_factor'] = calculated_sf
         else:
-            logger.warning(f'Failed to locate DA by addr {da_mms_addr}, please check the vIED lookup table manually.')
+            df.at[index, 'scale_factor'] = 1.0
+
+        if df_active_sunspec.at[idx_para, 'rw_access'] == 'RW':
+            df.at[index, 'is_control'] = True
 
     return df
 
@@ -817,8 +825,7 @@ def assign_conn_to_data_buffers(ied_server: 'IEC61850ServerMMS',
             ied_server.data_buffers[index].fieldbus_conn_mapping = df_mapping
 
             ied_server.data_buffers[index].is_monitor = True
-            if df_lookup_filtered.loc[idx_para, 'scale_factor'] - 1 > 1e-3:
-                ied_server.data_buffers[index].scaling_factor = df_lookup.loc[idx_para, 'scale_factor']
+            ied_server.data_buffers[index].scaling_factor = df_lookup.loc[idx_para, 'scale_factor']
             if df_lookup_filtered.loc[idx_para, 'is_control']:
                 ied_server.data_buffers[index].is_control = True
             ied_server.data_buffers[index].get_id_map(required_cols=['model_id', 'name', 'mms_addr'])
@@ -876,6 +883,29 @@ def scan_active_sunspec_parameter(df_mapping: DataFrame,
 =======================================================================
 """
 
+def get_point_cvalue(point_obj):
+    # 1. Try reading calculated value (cvalue)
+    cval = getattr(point_obj, 'cvalue', None)
+
+    # 2. Fallback to unscaled raw value if cvalue is None (common in dormant states)
+    if cval is None:
+        val = getattr(point_obj, 'value', None)
+
+        # 3. Handle SunSpec reserved invalid/unimplemented integer values (0x8000, 0x7FFF)
+        if val is None or val in (0x8000, 0x80000000, 0x7FFF):
+            # Dormant or uninitialized power register by passing a None
+            return None
+        else:
+            pt_type, pt_sf, sf_name = get_sunspec_point_meta_info(point_obj)
+            if pt_sf is not None and isinstance(pt_sf, (int, float)):
+                try:
+                    cval = val * (10.0 ** float(pt_sf))
+                except Exception as err:
+                    return None
+            else:
+                return None
+    return cval
+
 def read_value_from_point(conn_obj: SunSpecModbusClientDeviceTCP,
                           model_id:int, parameter:str) -> any:
     """
@@ -884,17 +914,24 @@ def read_value_from_point(conn_obj: SunSpecModbusClientDeviceTCP,
     lock = getattr(conn_obj, 'modbus_lock', None)
 
     try:
-        # read the instance to make sure that we are query the latest data
-        model_instance = conn_obj.models[model_id][0]
         if lock:
             with lock:  # Strictly serialize network access
+                # read the instance to make sure that we are query the latest data
+                model_instance = conn_obj.models[model_id][0]
                 model_instance.read()
+                point_obj = getattr(model_instance, parameter, None)
+                para_val = get_point_cvalue(point_obj) if point_obj else None
         else:
+            model_instance = conn_obj.models[model_id][0]
             model_instance.read()
+            point_obj = getattr(model_instance, parameter, None)
+            para_val = get_point_cvalue(point_obj) if point_obj else None
 
-        para_val = getattr(model_instance, parameter).cvalue
-        logger.debug(f'Successfully fetched sunspec parameter {model_id} - {parameter} with value {para_val}')
-        return para_val
+        if para_val is None or para_val in (0x8000, 0x80000000, 0x7FFF):
+            return None
+        else:
+            logger.debug(f'Successfully fetched sunspec parameter {model_id} - {parameter} with value {para_val}')
+            return para_val
     except (ModbusClientError, ConnectionAbortedError, BrokenPipeError, ConnectionResetError, OSError):
         logger.warning(f'Sunspec server for {parameter} unavailable, wait for scheduled reconnection')
         logger.warning(f'New reading for will be performed in the next iteration')
@@ -938,13 +975,53 @@ def read_single_value(data_buffer: 'DataBuffer') -> any:
     return read_value_from_point(conn_obj, model_id, parameter)
 
 
+def extract_sunspec_dynamic_scale_factor(conn_obj, model_id: int, parameter: str, fallback_factor: float) -> float:
+    """
+    Extracts dynamic scale factor (10^sf) directly from pysunspec2 point metadata.
+    Falls back to the lookup table factor if dynamic sf is missing.
+    """
+    try:
+        model_instance = conn_obj.models[model_id][0]
+        point_obj = getattr(model_instance, parameter, None)
+
+        if point_obj is not None:
+            # Check direct sf_value or sf attribute point
+            pt_type, pt_sf, sf_name = get_sunspec_point_meta_info(point_obj)
+
+            # If scale factor exponent exists (e.g., sf = -2 -> factor = 10^-2 = 0.01)
+            if pt_sf is not None and isinstance(pt_sf, (int, float)) and pt_sf != 0x8000:
+                dynamic_factor = 10.0 ** float(pt_sf)
+                logger.debug(f"Dynamic SunSpec SF found for {parameter}: 10^({pt_sf}) = {dynamic_factor}")
+                return dynamic_factor
+
+    except Exception as err:
+        logger.debug(f"Could not extract dynamic SF for {parameter}, using fallback: {err}")
+
+    # Fallback to static mapping factor if valid
+    if helper.is_valid_number(fallback_factor) and not np.isnan(fallback_factor) and fallback_factor > 0:
+        return float(fallback_factor)
+
+    return 1.0
+
 """
 =======================================================================
 =================   RUNTIME SUNSPEC FUNCTIONS - WRITE =================
 =======================================================================
 """
 
-def prepare_sunspec_value(para_obj, raw_val):
+def get_sunspec_point_meta_info(point_obj):
+    pt_type = getattr(point_obj, 'type', None)
+    pt_sf = getattr(point_obj, 'sf_value', None)
+    sf_name = getattr(point_obj, 'sf', None)
+
+    # Fallback scale factor lookup if sf attribute is detached
+    if pt_sf is None and hasattr(point_obj, 'model') and isinstance(sf_name, str):
+        if hasattr(point_obj.model, sf_name):
+            sf_point = getattr(point_obj.model, sf_name)
+            pt_sf = getattr(sf_point, 'value', None)
+    return pt_type, pt_sf, sf_name
+
+def prepare_sunspec_value(point_obj, raw_val):
     """
     Inspects a pysunspec2 point object to determine if it requires an int or float,
     and formats/rounds the input value accordingly.
@@ -957,15 +1034,7 @@ def prepare_sunspec_value(para_obj, raw_val):
         raw_val = raw_val.item()
 
     # 2. Extract point metadata from pysunspec2
-    pt_type = getattr(para_obj, 'type', None)
-    pt_sf = getattr(para_obj, 'sf_value', None)
-    sf_name = getattr(para_obj, 'sf', None)
-
-    # Fallback scale factor lookup if sf attribute is detached
-    if pt_sf is None and hasattr(para_obj, 'model') and isinstance(sf_name, str):
-        if hasattr(para_obj.model, sf_name):
-            sf_point = getattr(para_obj.model, sf_name)
-            pt_sf = getattr(sf_point, 'value', None)
+    pt_type, pt_sf, sf_name = get_sunspec_point_meta_info(point_obj)
 
     # 3. TYPE CHECKING LOGIC:
 
@@ -996,7 +1065,7 @@ def prepare_sunspec_value(para_obj, raw_val):
         f_val = float(raw_val)
         return int(f_val) if f_val.is_integer() else round(f_val, 2)
 
-def write_value_to_point(para_obj: SunSpecModbusClientPoint, value: any) -> bool:
+def write_cvalue_to_point(para_obj: SunSpecModbusClientPoint, value: any) -> bool:
     """
     Write a value (of all kinds) to the pre-defined sunspec parameter, and check whether the writing operation was
     successful by directly compare the reading to value.
@@ -1023,17 +1092,17 @@ def write_value_to_point(para_obj: SunSpecModbusClientPoint, value: any) -> bool
         return True
 
 
-def write_numeric_value_to_point(conn_obj: SunSpecModbusClientDeviceTCP,
-                                 para_obj: SunSpecModbusClientPoint,
-                                 value: float | int,
-                                 tol: float = 1e-5,
-                                 max_retries: int = 3,
-                                 retry_delay: float = 0.1) -> bool:
+def write_numeric_cvalue_to_point(conn_obj: SunSpecModbusClientDeviceTCP,
+                                  para_obj: SunSpecModbusClientPoint,
+                                  value: float | int,
+                                  tol: float = 1e-5,
+                                  max_retries: int = 3,
+                                  retry_delay: float = 0.1) -> bool:
     """
     Write a numeric value to a pre-defined sunspec parameter, and check whether the performed writing operation was
     successful (i.e. diff <= tol.) by examining the difference.
 
-    Compared to the other function :func:´write_value_to_point´, this one requires numeric values as input and will
+    Compared to the other function :func:´write_cvalue_to_point´, this one requires numeric values as input and will
     raise a ValueError if the writing operation failed.
 
     Parameters
@@ -1118,7 +1187,7 @@ def enable_control_by_identifier(conn_obj: SunSpecModbusClientDeviceTCP,
             enable_obj = getattr(conn_obj.models[model_id][0], enable_para)
             if enable_obj.cvalue != 1:
                 logger.info(f'Target control parameter is not enabled, set {parameter}{enable_id} to 1')
-                is_enabled = write_value_to_point(enable_obj, 1)
+                is_enabled = write_cvalue_to_point(enable_obj, 1)
                 break
             else:
                 logger.info(f'The enable parameter {enable_para} already has Boolean value 1')
@@ -1162,14 +1231,14 @@ def enable_control_by_fuzzy(conn_obj: SunSpecModbusClientDeviceTCP,
         enable_obj = getattr(conn_obj.models[model_id][0], enable_para)
         if enable_obj.cvalue != 1:
             logger.info(f'Target control parameter is not enabled, set {enable_para} to 1')
-            is_enabled = write_value_to_point(enable_obj, 1)
+            is_enabled = write_cvalue_to_point(enable_obj, 1)
     return enable_para, is_enabled
 
 
-def write_value_to_inverter(conn_obj: SunSpecModbusClientDeviceTCP,
-                            model_id:int, parameter:str,
-                            val:helper.StdDataType.AllTypes,
-                            is_force_enable:bool = False) -> bool:
+def write_cvalue_to_inverter(conn_obj: SunSpecModbusClientDeviceTCP,
+                             model_id:int, parameter:str,
+                             val:helper.StdDataType.AllTypes,
+                             is_force_enable:bool = False) -> bool:
     """
     Perform a write value event by setting the attribute cvalue of a specific sunspec parameter.
     There are two variants, the first directly performs the control on the pre-defined parameter, if the first one
@@ -1258,7 +1327,7 @@ def write_value_to_inverter(conn_obj: SunSpecModbusClientDeviceTCP,
 
         logger.info(f'Passing control value {val} to parameter {parameter}')
         obj = getattr(conn_obj.models[model_id][0], parameter)
-        is_written, committed_val = write_numeric_value_to_point(conn_obj, obj, val)
+        is_written, committed_val = write_numeric_cvalue_to_point(conn_obj, obj, val)
 
         return is_written, committed_val
 

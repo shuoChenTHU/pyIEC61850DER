@@ -517,6 +517,9 @@ class IedManager(object):
         self.CTRL_PERIOD = self.time_manager.get_control_watchdog_interval()
 
     def restart_ied_server(self, config_filepath: str | None):
+        # NOTE: the restart function is currently not in use. We use the heartbeat and docker compose settings to
+        # control the restart timing.
+
         logger.info('-------------------------------------------------------------------\n')
         logger.info('Re-initialise the ied_config and restart the IEC 61850 server.')
         self.is_restart = True
@@ -678,10 +681,16 @@ class IedServiceManager:
             flag = data_buffer.export_records_locally()
             if flag == 1:
                 logger.debug(f"Export CSV completed for DO {data_buffer.iec61850_do.name}.")
+                return True
             elif flag == 99:
                 logger.warning(f"Export CSV failed for DO {data_buffer.iec61850_do.name}!")
+                return False
+            else:
+                logger.warning(f'Unknown flag {flag}, CSV export failed.')
+                return False
         except Exception as err:
             logger.error(f"Failed to export CSV for DO {data_buffer.iec61850_do.name}: {err}")
+            return False
 
     def _upload_to_influxdb(self, data_buffer):
         """
@@ -723,10 +732,14 @@ class IedServiceManager:
 
             if data_buffer.influx_level > 0:
                 try:
-                    future = self.influx_executor.submit(self._upload_to_influxdb, data_buffer)
-                    futures[future] = data_buffer.iec61850_do.name
-                except RuntimeError:
-                    logger.warning("Influx executor already shut down. Skipping remaining task submissions.")
+                    if not getattr(self.influx_executor, '_shutdown', False):
+                        future = self.influx_executor.submit(self._upload_to_influxdb, data_buffer)
+                        futures[future] = data_buffer.iec61850_do.name
+                    else:
+                        logger.warning("Influx executor already shut down. Skipping remaining task submissions.")
+                except RuntimeError as err:
+                    if "cannot schedule new futures after shutdown" in str(err):
+                        logger.debug("Suppressed submission during service shutdown.")
                     break
 
         if not futures:
@@ -781,18 +794,9 @@ class IedServiceManager:
             logger.info('No data_buffers qualified for InfluxDB upload in this cycle.')
             return
 
-        futures = {}
-        for (handler, bucket), buffers in conn_groups.items():
-            if self.stop_event.is_set():
-                logger.warning("Shutdown in progress. Aborting InfluxDB submit loop.")
-                return
+        futures = self.join_bulk_influxdb_upload_worker(conn_groups)
 
-            # Submit exactly ONE task per unique connection
-            future = self.influx_executor.submit(interface_influxdb._bulk_upload_per_connection, handler, bucket,
-                                                 buffers)
-            futures[future] = (handler, len(buffers))
-
-        # Reduced strict timeout cushion (e.g., 8s instead of 120s)
+        # Reduced strict timeout cushion
         UPLOAD_TIMEOUT_SEC = 8.0
 
         try:
@@ -811,6 +815,62 @@ class IedServiceManager:
 
         logger.info('Upload data_buffer records to remote database influxdb sequence complete.')
 
+    def join_bulk_influxdb_upload_worker(self, conn_groups):
+        futures = {}
+        for (handler, bucket), buffers in conn_groups.items():
+            if self.stop_event.is_set():
+                logger.warning("Shutdown in progress. Aborting InfluxDB submit loop.")
+                return
+
+            # Submit exactly ONE task per unique connection
+            try:
+                if not getattr(self.influx_executor, '_shutdown', False):
+                    future = self.influx_executor.submit(interface_influxdb._bulk_upload_per_connection, handler,
+                                                         bucket, buffers)
+                    futures[future] = (handler, len(buffers))
+                else:
+                    logger.warning("Influx executor already shut down. Skipping remaining task submissions.")
+            except RuntimeError as err:
+                if "cannot schedule new futures after shutdown" in str(err):
+                    logger.debug("Suppressed submission during service shutdown.")
+                raise err
+
+        return futures
+
+    def join_csv_archive_worker(self):
+        """
+        Asynchronously submits CSV write tasks for all monitored buffers
+        and returns a mapping of futures to ensure complete flushing on shutdown.
+        """
+        futures = {}
+
+        # Shallow list snapshot to prevent dict mutation issues during iteration
+        data_buffers = list(self.ied_manager.ied_server.data_buffers.values())
+        monitored_buffers = [db for db in data_buffers if getattr(db, 'is_monitor', False)]
+
+        for db in monitored_buffers:
+            if self.stop_event.is_set():
+                logger.warning("Shutdown in progress. Aborting CSV write submit loop.")
+                break
+
+            try:
+                if not getattr(self.csv_writer_executor, '_shutdown', False):
+                    # Submit task and keep track of the future handle
+                    future = self.csv_writer_executor.submit(self._write_buffer_to_csv, db)
+                    futures[future] = db.id
+                else:
+                    logger.warning(
+                        "CSV writer executor already shut down. Skipping remaining task submissions."
+                    )
+            except RuntimeError as err:
+                if "cannot schedule new futures after shutdown" in str(err):
+                    logger.debug("Suppressed submission during service shutdown.")
+                    break
+                else:
+                    raise err
+
+        return futures
+
     # =========================================================================
     # Task 1: Local CSV Archive Worker
     # =========================================================================
@@ -824,17 +884,24 @@ class IedServiceManager:
             try:
                 logger.debug("Exporting CSV records to local storage...")
 
-                # Shallow list snapshot to prevent dict mutation issues during iteration
-                data_buffers = list(self.ied_manager.ied_server.data_buffers.values())
-                monitored_buffers = [db for db in data_buffers if getattr(db, 'is_monitor', False)]
+                futures = self.join_csv_archive_worker()
 
-                # Offload file writing asynchronously without holding GIL / locking the worker thread
-                for db in monitored_buffers:
-                    if not self.stop_event.is_set():
+                UPLOAD_TIMEOUT_SEC = 5.0
+
+                try:
+                    for future in as_completed(futures.keys(), timeout=UPLOAD_TIMEOUT_SEC):
+                        db_id = futures[future]
                         try:
-                            self.csv_writer_executor.submit(self._write_buffer_to_csv, db)
-                        except RuntimeError:
-                            logger.warning("CSV executor already shut down, skipping submission.")
+                            success = future.result()
+                            if not success:
+                                logger.warning(f"CSV export failed for data buffer {db_id}.")
+                        except Exception as err:
+                            logger.error(f"CSV export worker raised exception: {err}")
+                except TimeoutError:
+                    logger.error(
+                        f"CSV upload sequence hit timeout ({UPLOAD_TIMEOUT_SEC}s). Cancelling pending tasks.")
+                    for future in futures:
+                        future.cancel()
 
                 logger.info("CSV archiving tasks successfully offloaded to disk executor.")
 
@@ -1173,7 +1240,6 @@ class IedServiceManager:
             logger.info("Shutting down CSV writer executor pool...")
             self.csv_writer_executor.shutdown(wait=False, cancel_futures=True)
 
-
         logger.info("All service workers stopped.")
 
     # =========================================================================
@@ -1183,13 +1249,18 @@ class IedServiceManager:
         """Immediately triggers a CSV export cycle and waits for all disk tasks to finish."""
         logger.info("[Flush] Triggering immediate CSV archive export...")
         try:
-            data_buffers = list(self.ied_manager.ied_server.data_buffers.values())
-            monitored_buffers = [db for db in data_buffers if getattr(db, 'is_monitor', False)]
-            futures = [self.csv_writer_executor.submit(self._write_buffer_to_csv, db) for db in monitored_buffers]
-
-            # Wait for all submitted CSV writes to complete execution
+            futures = self.join_csv_archive_worker()
+            FLUSH_TIMEOUT_SEC = 10.0
             for future in futures:
-                future.result()
+                try:
+                    success = future.result(timeout=FLUSH_TIMEOUT_SEC)
+                    if not success:
+                        logger.warning("[Flush] One of the CSV export failed.")
+                except TimeoutError:
+                    logger.error(f"[Flush] CSV export task timed out after {FLUSH_TIMEOUT_SEC}s during flush.")
+                except Exception as f_err:
+                    logger.error(f"[Flush] CSV export task raised an error: {f_err}")
+
             logger.info("[Flush] CSV archive flush complete.")
 
         except Exception as err:
@@ -1202,7 +1273,10 @@ class IedServiceManager:
         """
         logger.info("[Flush] Triggering immediate bulk InfluxDB upload...")
         try:
-            ied_server = self.ied_manager.ied_server
+            ied_server = getattr(self.ied_manager, 'ied_server', None)
+            if ied_server is None:
+                logger.warning("[Flush] ied_server is None. Aborting InfluxDB flush.")
+                return
 
             # 1. Group qualified data buffers by unique connection handler & bucket
             conn_groups = defaultdict(list)
@@ -1218,14 +1292,13 @@ class IedServiceManager:
                 return
 
             # 2. Submit ONE bulk upload task per unique connection group
-            futures = []
-            for (handler, bucket), buffers in conn_groups.items():
-                future = self.influx_executor.submit(
-                    interface_influxdb._bulk_upload_per_connection, handler, bucket, buffers
-                )
-                futures.append(future)
+            futures = self.join_bulk_influxdb_upload_worker(conn_groups)
 
-            # 3. Wait for all bulk uploads to complete with a safety timeout per future
+            if not futures:
+                logger.warning("[Flush] No futures generated for bulk upload.")
+                return
+
+            # 3. Wait for all bulk uploads to complete
             FLUSH_TIMEOUT_SEC = 10.0
             for future in futures:
                 try:
@@ -1237,10 +1310,21 @@ class IedServiceManager:
                 except Exception as f_err:
                     logger.error(f"[Flush] Bulk upload task raised an error: {f_err}")
 
+            for (handler, _), _ in conn_groups.items():
+                try:
+                    # If your handler exposes write_api or client, call flush() on the API instance
+                    if hasattr(handler, 'write_api') and handler.write_api:
+                        handler.write_api.flush()
+                    elif hasattr(handler, 'flush'):
+                        handler.flush()
+                except Exception as client_err:
+                    logger.debug(f"[Flush] Minor notice during influx write_api flush: {client_err}")
+
             logger.info("[Flush] InfluxDB upload flush complete.")
 
         except Exception as err:
             logger.error(f"[Flush] Failed during InfluxDB upload flush: {err}")
+
 
     def flush_all_workers(self):
         """Helper to run both worker flushes sequentially before teardown/restart."""
@@ -1248,3 +1332,22 @@ class IedServiceManager:
         self.flush_csv_archive()
         self.flush_influx_upload()
         logger.info("All worker flushes finished.")
+
+    def close_all_sunspec_connections(self):
+        """
+        Explicitly closes all active Modbus TCP sockets to release connections on the physical inverter.
+        """
+        if hasattr(self.ied_manager, 'SUNSPEC_CONN_REGISTRY'):
+            for conn_key, conn_obj in self.ied_manager.SUNSPEC_CONN_REGISTRY.items():
+                try:
+                    if hasattr(conn_obj, 'client') and conn_obj.client:
+                        conn_obj.client.close()
+                    logger.info(f"Cleanly closed SunSpec connection socket: {conn_key}")
+                except Exception as err:
+                    logger.warning(f"Error closing socket for {conn_key}: {err}")
+
+    def close_all_der_connections(self):
+        # TODO: add other DER connection registries when implemented (e.g. IEEE2030.5, EEBUS)
+        logger.info("Starting pre-restart closing DER connection sequence...")
+        self.close_all_sunspec_connections()
+        logger.info("All DER connections gracefully closed.")
