@@ -194,6 +194,10 @@ def update_data_buffers(ied_manager: IedManager):
     server_swig_obj = ied_manager.ied_server.ied_server.swig_obj
     monitor_buffers = [db for db in ied_manager.ied_server.data_buffers.values() if db.is_monitor]
 
+    # batch updating local data cache of DER
+    # TODO: currently we only consider sunspec devices, this can be generalised for other DER protocols later
+    interface_sunspec.update_all_sunspec_caches(ied_manager)
+
     # Sequential Execution (Fastest & safest if sharing 1 or 2 Modbus sockets)
     for data_buffer in monitor_buffers:
         data_buffer_worker(ied_manager, data_buffer)

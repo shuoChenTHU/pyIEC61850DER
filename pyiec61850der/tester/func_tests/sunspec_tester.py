@@ -134,7 +134,7 @@ def routine_reading(config_obj, sunspec_conn):
         if sunspec_conn is None:
             sunspec_conn = df_lookup_sunspec.loc[idx, 'fieldbus_conn_obj']
 
-        val = interface.sunspec.read_value_from_point(sunspec_conn, model_id, parameter)
+        val = interface.sunspec.read_cached_point_cvalue(sunspec_conn, model_id, parameter)
         df_reading.loc[0, parameter] = val
 
     return df_reading

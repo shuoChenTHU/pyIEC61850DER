@@ -554,19 +554,15 @@ class DataBuffer(KwargsHandler):
             if is_init:
                 self.value_external = 0.0
                 self.value_quality = 2  # QUALITY_VALIDITY_INVALID
-                logger.warning(f'Write invalid value 0.0 to DO {self.iec61850_do.id}.')
-                logger.warning('Because IEC 61850 requires numeric value, can not pass None. This value could be '
-                               'misleading, attention.')
             elif self.value_quality == 2:
                 pass
             else:
                 # Preserve the old value for self.value_external, only change quality flag
                 self.value_quality = 3  # QUALITY_VALIDITY_QUESTIONABLE
-                logger.debug('Got nan value from the external source, no action.')
+
         else:
             try:
                 val_scaled = self.scale_external_value(val) if is_scale else val
-
                 if not is_valid_number(val_scaled):
                     logger.warning(f'{val_scaled} is not a number! Double check the data type, scaling_factor and unit_factor')
                     self.value_quality = 3  # QUALITY_VALIDITY_QUESTIONABLE
@@ -577,6 +573,15 @@ class DataBuffer(KwargsHandler):
             except Exception as e:
                 self.value_quality = 3  # QUALITY_VALIDITY_QUESTIONABLE
                 logger.exception(e)
+
+        if self.value_quality == 2:
+            logger.debug(f'Write invalid value 0.0 to DO {self.iec61850_do.id} with quality flag 2')
+            logger.debug('IEC 61850 requires numeric value, can not write None, 0.0 could be misleading, attention.')
+        elif self.value_quality == 3:
+            logger.debug(f'External val is nan, write 0.0 to DO {self.iec61850_do.id}, change quality to 3.')
+            logger.debug('IEC 61850 requires numeric value, can not write None, 0.0 could be misleading, attention.')
+
+
 
     def init_single_value(self):
         """
@@ -827,7 +832,7 @@ class DataBuffer(KwargsHandler):
         flag, msg_map = self.check_nan_value(source_val, iec61850_val)
 
         if flag >= 1:
-            logger.warning(msg_map.get(flag, 'Unknown message.'))
+            logger.warning(f'{self.id}: ' + msg_map.get(flag, 'Unknown message.'))
         elif all(isinstance(v, (IntTypes,FloatTypes,)) for v in (source_val, iec61850_val,)):
             is_updated = self.check_float_change(source_val, iec61850_val)
         elif all(isinstance(v, (BoolTypes, str,)) for v in (source_val, iec61850_val,)):

@@ -1340,6 +1340,7 @@ class IedServiceManager:
         if hasattr(self.ied_manager, 'SUNSPEC_CONN_REGISTRY'):
             for conn_key, conn_obj in self.ied_manager.SUNSPEC_CONN_REGISTRY.items():
                 try:
+                    conn_obj.is_active = False
                     if hasattr(conn_obj, 'client') and conn_obj.client:
                         conn_obj.client.close()
                     logger.info(f"Cleanly closed SunSpec connection socket: {conn_key}")
