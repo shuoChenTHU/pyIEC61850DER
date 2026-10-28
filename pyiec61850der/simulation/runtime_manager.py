@@ -340,6 +340,8 @@ class IedManager(object):
         self.HEARTBEAT_FILE = "./heartbeat"
 
         self.SUNSPEC_CONN_REGISTRY: dict[tuple[str, int, int], SunSpecModbusClientDeviceTCP] = {}
+        self.pending_sunspec_devices = []
+        self.active_sunspec_devices = []
 
 
 
@@ -1054,7 +1056,7 @@ class IedServiceManager:
 
         def _is_night_time(ctime):
             utc_hour = ctime.hour
-            is_night = (utc_hour >= 22 or utc_hour < 4)
+            is_night = (utc_hour >= 20 or utc_hour < 5)
             refresh_interval_sec = 1800.0 if is_night else 300.0
             return is_night, refresh_interval_sec
 
@@ -1098,6 +1100,9 @@ class IedServiceManager:
                             continue
 
                         # Check connection and model state
+                        conn_obj.is_night = is_night
+                        # trigger a data stall check before checking the health
+                        interface_sunspec.track_models_data_stall(self.ied_manager)
                         is_healthy = interface_sunspec.safe_reconnect_sunspec(conn_obj)
 
                         has_models = hasattr(conn_obj, 'models') and bool(conn_obj.models)

@@ -385,6 +385,22 @@ def export_updated_df_mapping(df_updated: DataFrame, path_output:str, idx_device
     path_output = f"{path_output.rsplit('.', 1)[0]}_{idx_device}.{path_output.rsplit('.', 1)[1]}"
     df_updated.to_excel(path_output)
 
+def add_conn_obj_online_attr(ied_manager, conn_obj, idx_device):
+    # TODO: conn_obj is not yet defined as a class! The attrs operation below may cause inconsistency!
+
+    conn_obj.timeout = 5.0  # leave the conn_obj 5s timeout to avoid long stall due to connection loss
+    if not hasattr(conn_obj, 'modbus_lock'):
+        conn_obj.modbus_lock = threading.Lock()
+    conn_obj.is_active = True  # Tag as online and fully mapped
+    conn_obj.idx_device = idx_device
+    # also init attr for the tracking of model data stall (in particular after overnight inverter trip)
+    conn_obj.active_models = get_sunspec_active_models(ied_manager.ied_server, conn_obj)
+    conn_obj.VITAL_MODELS = set([103, 122])  # only watch the models containing dynamic measurements
+    conn_obj.models_to_track = conn_obj.VITAL_MODELS.intersection(conn_obj.active_models)
+    conn_obj.is_night = False
+    conn_obj.data_stall_count = 0
+    conn_obj.MAX_DATA_STALL_COUNT = 5  # exceeding this threshold will trigger a sunspec conn_obj refresh
+    conn_obj.last_tracked_values = {}
 
 def update_mapping_by_initial_scan(ied_manager: 'IedManager'):
     """
@@ -466,6 +482,9 @@ def update_mapping_by_initial_scan(ied_manager: 'IedManager'):
             logger.warning(f'Sunspec data model returns an empty list, skip to the next sunspec device.')
             continue
 
+        # add the sunspec device to the list
+        ied_manager.active_sunspec_devices.append(conn_obj)
+
         # perform parameter scan and update the lookup table accordingly
         df_active_sunspec = scan_active_sunspec_parameter(df_mapping, para_indices, conn_obj,
                                                             ied_config.interface.is_keep_none)
@@ -477,18 +496,15 @@ def update_mapping_by_initial_scan(ied_manager: 'IedManager'):
 
         # === ONLINE HANDLER ===
         # assign the conn_obj and configurations to data_buffer instances
-        # TODO: conn_obj is not yet defined as a class! The attr is_active and idx_device may cause inconsistency!
-        conn_obj.timeout = 5.0  # leave the conn_obj 5s timeout to avoid long stall due to connection loss
-        if not hasattr(conn_obj, 'modbus_lock'):
-            conn_obj.modbus_lock = threading.Lock()
-        conn_obj.is_active = True  # Tag as online and fully mapped
-        conn_obj.idx_device = idx_device
-
         assign_conn_to_data_buffers(ied_manager.ied_server, df_lookup_updated, df_active_sunspec, conn_obj, conn_config)
+
+        add_conn_obj_online_attr(ied_manager, conn_obj, idx_device)
 
         df_lookup = df_lookup_updated
         logger.info(
             f'Initial sunspec reading finished, {len(df_active_sunspec)} parameters are available for the IED server.')
+        logger.info(f'Active sunspec models for data query: {conn_obj.active_models}')
+        logger.info(f'Active sunspec models for health check: {conn_obj.models_to_track}')
         logger.info('-------------------------------------------------------------------\n')
 
 
@@ -568,11 +584,7 @@ def update_mapping_for_pending_devices(ied_manager: 'IedManager', stop_event: th
             )
 
             # 5. Set up thread lock & timeout, then assign connection handle to DataBuffers
-            conn_obj.timeout = 5.0
-            if not hasattr(conn_obj, 'modbus_lock') or conn_obj.modbus_lock is None:
-                conn_obj.modbus_lock = threading.Lock()
-            conn_obj.is_active = True  # Tag as online and fully mapped
-            conn_obj.idx_device = idx_device
+            add_conn_obj_online_attr(ied_manager, conn_obj, idx_device)
 
             assign_conn_to_data_buffers(
                 ied_manager.ied_server, df_lookup_updated, df_active_sunspec, conn_obj, conn_config
@@ -581,6 +593,8 @@ def update_mapping_for_pending_devices(ied_manager: 'IedManager', stop_event: th
             df_lookup = df_lookup_updated
             has_successful_initialization = True
             logger.info(f"Late SunSpec initialization complete for device {idx_device} ({ipaddr}:{port}).")
+            logger.info(f'Active sunspec models for data query: {conn_obj.active_models}')
+            logger.info(f'Active sunspec models for health check: {conn_obj.models_to_track}')
             logger.info('-------------------------------------------------------------------\n')
 
         except Exception as scan_err:
@@ -718,8 +732,22 @@ def keep_alive(sunspec_conn: SunSpecModbusClientDeviceTCP) -> bool:
     def _test_health():
         client = getattr(sunspec_conn, 'client', None)
         client_dict = getattr(client, '__dict__', {}) if client else {}
+
+        # tag unhealth connection if socket is None
         if client_dict.get('socket') is None:
             return False
+
+        # tag unhealth connection (in daytime) if data stall threshold is exceeded
+        if not sunspec_conn.is_night:
+            max_count = sunspec_conn.MAX_DATA_STALL_COUNT
+            if sunspec_conn.data_stall_count >= max_count:
+                logger.error(
+                    f"SunSpec data stall limit reached ({sunspec_conn.data_stall_count}/{max_count}). "
+                    f"Forcing connection reset to clear stale inverter buffer."
+                )
+                sunspec_conn.data_stall_count = 0
+                sunspec_conn.last_tracked_values = {}
+                return False
 
         if hasattr(sunspec_conn, 'models') and sunspec_conn.models:
             first_model_id = next(iter(sunspec_conn.models))
@@ -895,6 +923,7 @@ def get_required_sunspec_models_per_conn(ied_server) -> dict:
     Returns:
         dict: { conn_obj: { model_id_1, model_id_2, ... } }
     """
+
     req_models_map = defaultdict(set)
 
     for db in ied_server.data_buffers.values():
@@ -918,6 +947,33 @@ def get_required_sunspec_models_per_conn(ied_server) -> dict:
 
     return req_models_map
 
+def get_sunspec_active_models(ied_server, conn_obj):
+
+    active_models = []
+
+    for db in ied_server.data_buffers.values():
+        if getattr(db, 'is_monitor', False) and getattr(db, 'data_source', '') == 'sunspec':
+            if conn_obj != getattr(db, 'fieldbus_conn_obj', None):
+                continue
+
+            # Retrieve model_id using the DataBuffer's internal mapping ID map
+            if hasattr(db, 'fieldbus_conn_mapping') and hasattr(db, 'id_map'):
+                mms_addr = db.iec61850_do.obj_ref_map['monitor_da_mms_addr']
+                if mms_addr and mms_addr in db.id_map:
+                    idx = db.id_map[mms_addr][0]
+                    model_id = db.fieldbus_conn_mapping.at[idx, 'model_id']
+
+                    # Convert to int if model_id is numeric (e.g. 103, 120, 123)
+                    try:
+                        model_id = int(model_id)
+                    except (ValueError, TypeError):
+                        pass
+
+                    active_models.append(model_id)
+
+    return set(active_models)
+
+
 """
 =======================================================================
 =================   RUNTIME SUNSPEC FUNCTIONS - READ  =================
@@ -928,15 +984,20 @@ def update_all_sunspec_caches(ied_manager: 'IedManager'):
     """
     Performs block reads ONLY for SunSpec models required by monitored DataBuffers.
     Prevents Modbus Exception 2 and WinError 10038 by avoiding unmapped/proprietary models.
+
+    TODO: currently we only read the first instance in model list by default.
     """
 
-    def _selective_batch_read():
-        for model_id in required_model_ids:
+    def _selective_batch_read(conn_obj):
+        for model_id in conn_obj.active_models:
             # Check if model exists on the pysunspec2 connection object
             model_list = conn_obj.models.get(model_id)
             if not model_list:
                 continue
 
+            if len(model_list) > 1:
+                logger.warning(f'The object of model ID {model_id} has multiple instances, update cache for all '
+                               f'instances, pay special attention to data inconsistency.')
             try:
                 # Issue ONE Modbus read request for this required model block
                 model_list[0].read()
@@ -955,21 +1016,72 @@ def update_all_sunspec_caches(ied_manager: 'IedManager'):
     if not ied_server:
         return
 
-    req_models_map = get_required_sunspec_models_per_conn(ied_server)
-
-    for conn_obj, required_model_ids in req_models_map.items():
+    for conn_obj in ied_manager.active_sunspec_devices:
         # Check connection health and active status
         if not getattr(conn_obj, 'is_active', False):
             continue
 
-        logger.info(f'Batch reading the sunspec device idx {conn_obj.idx_device} with models {required_model_ids}')
+        logger.info(f'Batch reading the sunspec device idx {conn_obj.idx_device} with models '
+                    f'{list(conn_obj.active_models)}')
         lock = getattr(conn_obj, 'modbus_lock', None)
 
         if lock:
             with lock:
-                _selective_batch_read()
+                _selective_batch_read(conn_obj)
         else:
-            _selective_batch_read()
+            _selective_batch_read(conn_obj)
+
+def track_models_data_stall(ied_manager: 'IedManager'):
+    """
+    This function is called right before the sunspec connection health check, therefore executed with a lower time
+    resolution than data buffer update workers. Currently we need it to detect stall state of the model readings.
+
+    :param ied_manager:
+    :return:
+    """
+
+    ied_server = getattr(ied_manager, 'ied_server', None)
+    if not ied_server:
+        return
+    # req_models_map = get_required_sunspec_models_per_conn(ied_server)
+    for conn_obj in ied_manager.active_sunspec_devices:
+        # Check connection health and active status
+        if not getattr(conn_obj, 'is_active', False):
+            continue
+
+        track_model_ids = list(conn_obj.models_to_track)
+        track_model_ids.sort()
+        logger.info(f'Checking data stall for sunspec device idx {conn_obj.idx_device} with models {track_model_ids}')
+        lock = getattr(conn_obj, 'modbus_lock', None)
+        if lock:
+            with lock:
+                current_values_sig = {}
+                for model_id in track_model_ids:
+                    current_values_sig[model_id] = {}
+                    if model_id in conn_obj.models:
+                        inst = conn_obj.models[model_id][0]
+                        # Sample key parameters to check for movement
+                        for key, point_obj in inst.points.items():
+                            c_val = get_point_cvalue(point_obj) if point_obj else None
+                            current_values_sig[model_id][f"{key}"] = c_val
+
+                for model_id in track_model_ids:
+                    # Compare with previous signature
+                    if not conn_obj.last_tracked_values:
+                        conn_obj.last_tracked_values = current_values_sig
+                        return
+                    if conn_obj.last_tracked_values[model_id] == current_values_sig[model_id] and current_values_sig[model_id]:
+                        conn_obj.data_stall_count += 1
+                        logger.warning(
+                            f"SunSpec data stall warning: Values unchanged for {conn_obj.data_stall_count} checks "
+                            f"on device {getattr(conn_obj, 'idx_device', 0)}, model ID {model_id}."
+                        )
+                        return
+
+                # Data is changing normally! Reset counter.
+                conn_obj.data_stall_count = 0
+                conn_obj.last_tracked_values = current_values_sig
+
 
 def get_point_cvalue(point_obj):
     # 1. Try reading calculated value (cvalue)
@@ -1001,6 +1113,8 @@ def read_cached_point_cvalue(conn_obj: SunSpecModbusClientDeviceTCP,
     """
 
     try:
+        # by default always read the first instance
+        # TODO: in the case of multiple sunspec devices, the correct index must be specified!
         model_instance = conn_obj.models[model_id][0]
         point_obj = getattr(model_instance, parameter, None)
         para_val = get_point_cvalue(point_obj) if point_obj else None
