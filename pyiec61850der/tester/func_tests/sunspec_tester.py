@@ -6,6 +6,7 @@ A tester script for sunspec functions.
 """
 
 import sunspec2.modbus.client as client
+import time
 
 def sunspec_full_scan(ip_addr='192.168.170.78', port=502, slave_id=126):
     d = client.SunSpecModbusClientDeviceTCP(slave_id, ip_addr, port)
@@ -61,13 +62,40 @@ def control_tester(ip_addr='192.168.170.90', port=502, slave_id=126):
     obj.read()
     obj.cvalue
 
+# # SMA inverter
+# slave_id = 126
+# ip_addr = '192.168.170.85'
+# port = 502
 
-slave_id = 126
-ip_addr = '192.168.170.76'
-port = 502
+# Kostal Inverter
+slave_id = 71
+ip_addr = '192.168.170.88'
+port = 1502
 
 sunspec_full_scan(ip_addr, port, slave_id)
 # control_tester(ip_addr, port, slave_id)
+
+model_ids = [103, 120, 123]
+d = client.SunSpecModbusClientDeviceTCP(slave_id, ip_addr, port)
+d.scan()
+for i in range(999999999):
+    print("="*120)
+    t_read = 0
+    for model_id in model_ids:
+        print(f'Model scan index {i}, model id {model_id}')
+        model_list = d.models.get(model_id)
+        tic = time.perf_counter()
+        model_list[0].read()
+        toc = time.perf_counter()
+        t_read += toc - tic
+        points = getattr(d.models[model_id][0], 'points')
+        for name, val in points.items():
+            val = getattr(d.models[model_id][0], name).cvalue
+            print(f'Parameter name {name}, value: {val}')
+        time.sleep(1.0)
+    print(f'Total model read time: {t_read}')
+    time.sleep(5)
+
 
 #################################################################
 #################### IEC 61850 relevante tests  #################
@@ -170,7 +198,7 @@ def SunspecMonitorIED(ipaddr='192.168.170.90', port=502, slave_id=126):
 
         time.sleep(10 - processingTime)
 
-slave_id = 126
-ip_addr = '192.168.170.76'
-port = 502
 SunspecMonitorIED(ip_addr, port, slave_id)
+
+
+

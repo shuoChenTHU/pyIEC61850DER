@@ -14,7 +14,8 @@ TODO: this sub-module has been growing during the code refactoring. Consider a d
 
 import sunspec2.modbus.client as client
 from sunspec2.modbus.client import  SunSpecModbusClientDeviceTCP, SunSpecModbusClientPoint, SunSpecModbusValueError
-from sunspec2.modbus.modbus import ModbusClientError
+from sunspec2.modbus.modbus import ModbusClientError, ModbusClientTimeout
+from socket import timeout as SocketTimeout
 import pandas as pd
 from pandas import DataFrame
 import numpy as np
@@ -396,11 +397,12 @@ def add_conn_obj_online_attr(ied_manager, conn_obj, idx_device):
     # also init attr for the tracking of model data stall (in particular after overnight inverter trip)
     conn_obj.active_models = get_sunspec_active_models(ied_manager.ied_server, conn_obj)
     conn_obj.VITAL_MODELS = set([103, 122])  # only watch the models containing dynamic measurements
-    conn_obj.models_to_track = conn_obj.VITAL_MODELS.intersection(conn_obj.active_models)
+    conn_obj.model_stall_track = conn_obj.VITAL_MODELS.intersection(conn_obj.active_models)
     conn_obj.is_night = False
     conn_obj.data_stall_count = 0
     conn_obj.MAX_DATA_STALL_COUNT = 5  # exceeding this threshold will trigger a sunspec conn_obj refresh
     conn_obj.last_tracked_values = {}
+    conn_obj.last_batch_successful = False
 
 def update_mapping_by_initial_scan(ied_manager: 'IedManager'):
     """
@@ -504,7 +506,7 @@ def update_mapping_by_initial_scan(ied_manager: 'IedManager'):
         logger.info(
             f'Initial sunspec reading finished, {len(df_active_sunspec)} parameters are available for the IED server.')
         logger.info(f'Active sunspec models for data query: {conn_obj.active_models}')
-        logger.info(f'Active sunspec models for health check: {conn_obj.models_to_track}')
+        logger.info(f'Active sunspec models for health check: {conn_obj.model_stall_track}')
         logger.info('-------------------------------------------------------------------\n')
 
 
@@ -594,7 +596,7 @@ def update_mapping_for_pending_devices(ied_manager: 'IedManager', stop_event: th
             has_successful_initialization = True
             logger.info(f"Late SunSpec initialization complete for device {idx_device} ({ipaddr}:{port}).")
             logger.info(f'Active sunspec models for data query: {conn_obj.active_models}')
-            logger.info(f'Active sunspec models for health check: {conn_obj.models_to_track}')
+            logger.info(f'Active sunspec models for health check: {conn_obj.model_stall_track}')
             logger.info('-------------------------------------------------------------------\n')
 
         except Exception as scan_err:
@@ -792,7 +794,7 @@ def keep_alive(sunspec_conn: SunSpecModbusClientDeviceTCP) -> bool:
             return True
         else:
             sunspec_conn.is_active = False
-            logger.warning("SunSpec model read returned no models/data. Marking inactive.")
+            logger.warning("Keep-alive action detects unhealthy connection. Marking inactive.")
             _cleanup_stale_socket(sunspec_conn)
             return False
 
@@ -970,7 +972,7 @@ def get_sunspec_active_models(ied_server, conn_obj):
                         pass
 
                     active_models.append(model_id)
-
+    active_models.sort()
     return set(active_models)
 
 
@@ -988,7 +990,37 @@ def update_all_sunspec_caches(ied_manager: 'IedManager'):
     TODO: currently we only read the first instance in model list by default.
     """
 
+    def _safe_reset_sunspec_model_cache(model_instance):
+        """
+        Completely wipes cached values, scale factor dependencies, and
+        internal point states for a pysunspec2 model instance to prevent
+        stale register-shift contamination.
+        """
+        if model_instance is None:
+            return
+
+        try:
+            if hasattr(model_instance, 'points') and model_instance.points:
+                for pt_name, pt in model_instance.points.items():
+                    # Reset all known value layers
+                    if hasattr(pt, 'cvalue'):
+                        pt.cvalue = None
+                    # Clear any error or status flags on the point if present
+                    if hasattr(pt, 'dirty'):
+                        pt.dirty = True
+
+            # If the model instance has a block or data buffer reference, clear it
+            if hasattr(model_instance, 'error_info'):
+                model_instance.data = 'read_error'
+
+            logger.debug(f"Successfully purged cache for model {getattr(model_instance, 'model_id', 'unknown')}")
+        except Exception as err:
+            logger.debug(f"Error during model cache reset: {err}")
+
     def _selective_batch_read(conn_obj):
+        # Track whether this batch read cycle completed successfully
+        batch_success = True
+
         for model_id in conn_obj.active_models:
             # Check if model exists on the pysunspec2 connection object
             model_list = conn_obj.models.get(model_id)
@@ -998,19 +1030,38 @@ def update_all_sunspec_caches(ied_manager: 'IedManager'):
             if len(model_list) > 1:
                 logger.warning(f'The object of model ID {model_id} has multiple instances, update cache for all '
                                f'instances, pay special attention to data inconsistency.')
+
             try:
                 # Issue ONE Modbus read request for this required model block
                 model_list[0].read()
-            except Exception as err:
-                if "10038" in str(err) or "Socket write error" in str(err):
-                    conn_obj.is_active = False
-                    logger.warning(
-                        f"Socket closed during batch read on device "
-                        f"{getattr(conn_obj, 'idx_device', 0)}. Tagging inactive."
-                    )
-                    break
+                time.sleep(ied_manager.time_manager.SUNSPEC_MODEL_READ_PAUSE)
+
+            except (TimeoutError, SocketTimeout, ModbusClientTimeout, Exception) as err:
+                batch_success = False
+                err_str = str(err).lower()
+
+                logger.warning(f'Sunspec read timeout on Model {model_id}: {err_str}.')
+
+                if isinstance(err, ModbusClientTimeout):
+                    logger.error(f"ModbusClientTimeout occurred, must enforce reconnection.")
+                    return False
+
+                elif "timed out" in err_str or "timeout" in err_str or isinstance(err, TimeoutError):
+                    logger.warning(f"Aborting batch read and invalidating cache. Flag batch_success = {batch_success}")
+                    logger.warning(f'Clearing caches in all models.')
+
+                    # Invalidate model points so they don't hold stale shifted data
+                    for model_instance in model_list:
+                        _safe_reset_sunspec_model_cache(model_instance)
                 else:
                     logger.warning(f"Batch Modbus read failed for required Model {model_id}: {err}")
+                break
+
+        # Store health state on conn_obj so control loops know if data is fresh
+        conn_obj.last_batch_successful = batch_success
+
+        return True
+
 
     ied_server = getattr(ied_manager, 'ied_server', None)
     if not ied_server:
@@ -1027,9 +1078,21 @@ def update_all_sunspec_caches(ied_manager: 'IedManager'):
 
         if lock:
             with lock:
-                _selective_batch_read(conn_obj)
+                is_health = _selective_batch_read(conn_obj)
         else:
-            _selective_batch_read(conn_obj)
+            is_health = _selective_batch_read(conn_obj)
+
+        if not is_health:
+            conn_obj.client.socket = None
+            conn_obj.is_active = False
+
+            # Let safe_reconnect_sunspec handle the cleanup and reconnection safely
+            is_healthy = safe_reconnect_sunspec(conn_obj)
+            if not is_healthy:
+                logger.warning('Reconnection failed, wait until the next sunspec conn_obj health check.')
+            else:
+                logger.info('Reconnection successful.')
+                conn_obj.is_active = True
 
 def track_models_data_stall(ied_manager: 'IedManager'):
     """
@@ -1049,7 +1112,7 @@ def track_models_data_stall(ied_manager: 'IedManager'):
         if not getattr(conn_obj, 'is_active', False):
             continue
 
-        track_model_ids = list(conn_obj.models_to_track)
+        track_model_ids = list(conn_obj.model_stall_track)
         track_model_ids.sort()
         logger.info(f'Checking data stall for sunspec device idx {conn_obj.idx_device} with models {track_model_ids}')
         lock = getattr(conn_obj, 'modbus_lock', None)

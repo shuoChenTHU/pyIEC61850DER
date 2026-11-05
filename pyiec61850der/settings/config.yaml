@@ -31,7 +31,7 @@ IED:
 
 PV1:
     # always  check the PV parameter before starting the CLS software
-    ip: '192.168.170.82'
+    ip: '192.168.170.85'
     slave_id: 126
     tcp_port: 502
     

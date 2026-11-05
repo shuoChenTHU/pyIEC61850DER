@@ -183,14 +183,22 @@ def control_watchdog_worker(ied_manager: IedManager):
 
     failed_attempts = ied_manager.failed_control_attempts
     MAX_ALLOWED_FAILURES = 3
+    MAX_ITERS_TILL_FLUSH = 20
 
     while ied_manager.status < 4:
         try:
             dbf = DataBuffer.control_queue.get(block=True, timeout=0.05)
             tic = time.perf_counter()
+            conn_obj = dbf.fieldbus_conn_obj
+
+            if hasattr(conn_obj, 'last_batch_successful') and not conn_obj.last_batch_successful:
+                logger.error(f'Flag - last_batch_successful: {conn_obj.last_batch_successful}')
+                logger.error("Aborting control command: SunSpec model cache is stale or desynchronized due to recent timeouts.")
+                continue
 
             # Bypass ONLY if max network/transient retries were reached
-            if failed_attempts.get(dbf.id, 0) >= MAX_ALLOWED_FAILURES:
+            failure_counts = failed_attempts.get(dbf.id, 0)
+            if failure_counts >= MAX_ALLOWED_FAILURES:
                 logger.warning(
                     f"DO {dbf.id} exceeded max failures ({MAX_ALLOWED_FAILURES}). "
                     f"Bypassing and syncing memory to break control loop."
@@ -198,6 +206,15 @@ def control_watchdog_worker(ied_manager: IedManager):
 
                 dbf.value_external = dbf._value_iec61850
                 dbf.flush_stale_controls()
+
+                if failure_counts >=MAX_ITERS_TILL_FLUSH:
+                    logger.warning(
+                        f"DO {dbf.id} exceeded max failures ({MAX_ITERS_TILL_FLUSH}). "
+                        f"Stop bypassing and syncing memory, put the DO back into control loop."
+                    )
+                    failed_attempts[dbf.id] = 0
+                else:
+                    failed_attempts[dbf.id] = failure_counts + 1
 
                 DataBuffer.control_queue.task_done()
                 continue

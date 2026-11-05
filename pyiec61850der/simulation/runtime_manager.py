@@ -96,6 +96,7 @@ class TimeManager(object):
 
         # timer for refreshing service / conn_obj
         self.SUNSPEC_CONN_OBJ_TIMER = 60 * 60 * 2  # restart sunspec connections every 2 hours
+        self.SUNSPEC_MODEL_READ_PAUSE = 0.01  # a pause between sunspec model reads to prevent timeout error
         self.INFLUXDB_TIMER = 60 * 60 * 4  # restart influxdb every 4 hours
         self.ROUTINE_MAX_T = 60 * 60 * 24  # one day is considered a routine cycle
         self.SYNC_MAX_T = 60 * 5  # sync time every 5 minutes
@@ -105,7 +106,7 @@ class TimeManager(object):
 
         # time setting for ied routine restarter
         self.ROUTINE_RESTART_INTERVAL = 60
-        self.ROUTINE_RESTART_HOUR = 6  # restart the service at this time [UTC]
+        self.ROUTINE_RESTART_HOUR = 8  # restart the service at this time [UTC]
         self.ROUTINE_RESTART_MINUTE = 0  # restart the service at this time [UTC]
 
 

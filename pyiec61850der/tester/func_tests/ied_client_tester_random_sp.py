@@ -222,7 +222,7 @@ def main():
                 continue  # Restart loop immediately once physical link is back
 
             # 2. Control Cycle
-            sp_target = get_left_skewed_value(20, (0,100))
+            sp_target = get_left_skewed_value(5, (0,10))
 
             # Write Setpoint (SP)
             write_success = write_float_value(connection, write_obj_sp, sp_target, iec61850.IEC61850_FC_SP)

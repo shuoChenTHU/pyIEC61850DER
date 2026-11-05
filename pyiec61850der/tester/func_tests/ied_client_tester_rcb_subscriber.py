@@ -194,6 +194,8 @@ def process_report_payload(connection, dataset_ref, data_set_directory):
 def main():
     hostname = "127.0.0.1"
     tcpPort = 61850
+    # hostname = "192.168.170.83"
+    # tcpPort = 60850
     INTG_PERIOD = 5000  # ms
     T_WAIT = 30 #s
     rcb_ref = 'virtualCLSminiPV1/LLN0$RP$PV1_MX_MMXU1'
