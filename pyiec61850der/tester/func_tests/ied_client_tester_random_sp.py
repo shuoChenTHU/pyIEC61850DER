@@ -1,48 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-A test script for structured testing on the IED client side
+A test script for periodical controlling PV feed-in power via the DA DGEN1.OutWSet.setMag.f
 
-@author: S. Chen
-
-The test script for pyiec61850 client object was taken from a test framework as described in:
-
-J. Morris, F. Ebe, J. Pichl, S. Chen, G. Heilscher, and J.-G. Leeser, 
-‘Implementation of an automated test bench for monitoring and controlling systems of 
-decentralized energy systems through Controller Hardware-In-the-Loop and 
-Power Hardware-In-the-Loop methodology’, in 2020 5th IEEE Workshop on the Electronic Grid (eGRID), 
-Aachen, Germany: IEEE, Nov. 2020, pp. 1–8. doi: 10.1109/eGRID48559.2020.9330636.
-
-The test functions are strongly simplised for easy use.
-
-libiec61850 client error code:
-ref: https://support.mz-automation.de/doc/libiec61850/net/latest/namespace_i_e_c61850_1_1_client.html
-      IedClientError.IED_ERROR_OK = 0
-      IedClientError.IED_ERROR_NOT_CONNECTED = 1
-      IedClientError.IED_ERROR_ALREADY_CONNECTED = 2
-      IedClientError.IED_ERROR_CONNECTION_LOST = 3
-      IedClientError.IED_ERROR_SERVICE_NOT_SUPPORTED = 4
-      IedClientError.IED_ERROR_CONNECTION_REJECTED = 5
-      IedClientError.IED_ERROR_USER_PROVIDED_INVALID_ARGUMENT = 10
-      IedClientError.IED_ERROR_ENABLE_REPORT_FAILED_DATASET_MISMATCH = 11
-      IedClientError.IED_ERROR_OBJECT_REFERENCE_INVALID = 12
-      IedClientError.IED_ERROR_UNEXPECTED_VALUE_RECEIVED = 13
-      IedClientError.IED_ERROR_TIMEOUT = 20
-      IedClientError.IED_ERROR_ACCESS_DENIED = 21
-      IedClientError.IED_ERROR_OBJECT_DOES_NOT_EXIST = 22
-      IedClientError.IED_ERROR_OBJECT_EXISTS = 23
-      IedClientError.IED_ERROR_OBJECT_ACCESS_UNSUPPORTED = 24
-      IedClientError.IED_ERROR_TYPE_INCONSISTENT = 25,
-      IedClientError.IED_ERROR_TEMPORARILY_UNAVAILABLE = 26
-      IedClientError.IED_ERROR_OBJECT_UNDEFINED = 27
-      IedClientError.IED_ERROR_INVALID_ADDRESS = 28
-      IedClientError.IED_ERROR_HARDWARE_FAULT = 29
-      IedClientError.IED_ERROR_TYPE_UNSUPPORTED = 30
-      IedClientError.IED_ERROR_OBJECT_ATTRIBUTE_INCONSISTENT = 31
-      IedClientError.IED_ERROR_OBJECT_VALUE_INVALID = 32
-      IedClientError.IED_ERROR_OBJECT_INVALIDATED = 33
-      IedClientError.IED_ERROR_MALFORMED_MESSAGE = 34
-      IedClientError.IED_ERROR_SERVICE_NOT_IMPLEMENTED = 98
-      IED_ERROR_UNKNOWN = 99
 """
 
 import csv
@@ -222,7 +181,7 @@ def main():
                 continue  # Restart loop immediately once physical link is back
 
             # 2. Control Cycle
-            sp_target = get_left_skewed_value(5, (0,10))
+            sp_target = get_left_skewed_value(50, (0,100))
 
             # Write Setpoint (SP)
             write_success = write_float_value(connection, write_obj_sp, sp_target, iec61850.IEC61850_FC_SP)

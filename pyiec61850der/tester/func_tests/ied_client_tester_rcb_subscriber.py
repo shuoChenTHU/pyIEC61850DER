@@ -1,36 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-A test script for the testing of subscribing MMS RCB reports
+A test script for the testing of subscribing MMS RCB reports.
 
-libiec61850 client error code:
-ref: https://support.mz-automation.de/doc/libiec61850/net/latest/namespace_i_e_c61850_1_1_client.html
-      IedClientError.IED_ERROR_OK = 0
-      IedClientError.IED_ERROR_NOT_CONNECTED = 1
-      IedClientError.IED_ERROR_ALREADY_CONNECTED = 2
-      IedClientError.IED_ERROR_CONNECTION_LOST = 3
-      IedClientError.IED_ERROR_SERVICE_NOT_SUPPORTED = 4
-      IedClientError.IED_ERROR_CONNECTION_REJECTED = 5
-      IedClientError.IED_ERROR_USER_PROVIDED_INVALID_ARGUMENT = 10
-      IedClientError.IED_ERROR_ENABLE_REPORT_FAILED_DATASET_MISMATCH = 11
-      IedClientError.IED_ERROR_OBJECT_REFERENCE_INVALID = 12
-      IedClientError.IED_ERROR_UNEXPECTED_VALUE_RECEIVED = 13
-      IedClientError.IED_ERROR_TIMEOUT = 20
-      IedClientError.IED_ERROR_ACCESS_DENIED = 21
-      IedClientError.IED_ERROR_OBJECT_DOES_NOT_EXIST = 22
-      IedClientError.IED_ERROR_OBJECT_EXISTS = 23
-      IedClientError.IED_ERROR_OBJECT_ACCESS_UNSUPPORTED = 24
-      IedClientError.IED_ERROR_TYPE_INCONSISTENT = 25,
-      IedClientError.IED_ERROR_TEMPORARILY_UNAVAILABLE = 26
-      IedClientError.IED_ERROR_OBJECT_UNDEFINED = 27
-      IedClientError.IED_ERROR_INVALID_ADDRESS = 28
-      IedClientError.IED_ERROR_HARDWARE_FAULT = 29
-      IedClientError.IED_ERROR_TYPE_UNSUPPORTED = 30
-      IedClientError.IED_ERROR_OBJECT_ATTRIBUTE_INCONSISTENT = 31
-      IedClientError.IED_ERROR_OBJECT_VALUE_INVALID = 32
-      IedClientError.IED_ERROR_OBJECT_INVALIDATED = 33
-      IedClientError.IED_ERROR_MALFORMED_MESSAGE = 34
-      IedClientError.IED_ERROR_SERVICE_NOT_IMPLEMENTED = 98
-      IED_ERROR_UNKNOWN = 99
 """
 
 import time

@@ -139,21 +139,22 @@ pyiec61850der\
 │   └── third_party.py  # Storage of functions and implementations provided by a third party.
 ├── simulation  # Submodule for the real-time operation of the vIED
 │   ├── README.md
-│   ├── pandapower61850  # pandapower61850
+│   ├── iec61850_mms_pcap_parser.py  # A useful script to parse IEC 61850 MMS related data in a wireshark pcap capture file.
 │   ├── runtime_manager.py  # Definition of two runtime-relevant classes TimeManager and IedManager
 │   ├── virtual_ied.py  # Main module for the organisation of core real-time function blocks and thread workers.
 │   └── virtual_scada_old.py  # A deprecated python script that simulates a virtual SCADA.
 └── tester  # Submodule for tester scripts.
     ├── README.md
     ├── func_tests
+    │   ├── IEC61850_DA_lookup_sunspec_tester.csv
     │   ├── config_tester.yaml
     │   ├── ied_client_tester.py  # A test script for structured testing on the IED client side
-    │   ├── ied_client_tester_old.py  # A deprecated test script for structured testing on the IED client side
-    │   ├── ied_server_tester.py  # A test script for structured testing on the IED server side
-    │   ├── ied_server_tester_old.py  # A deprecated test script for structured testing on the IED server side
-    │   ├── lookup_mpc.csv
-    │   ├── sunspec_tester.py  # A tester script for sunspec functions.
-    │   └── vIED_function_tester_old.py  # A deprecated testing script for some core functions, no longer in deployment.
+    │   ├── ied_client_tester_random_sp.py  # A test script for periodical controlling PV feed-in power via the DA DGEN1.OutWSet.setMag.f
+    │   ├── ied_client_tester_rcb_subscriber.py  # A test script for the testing of subscribing MMS RCB reports.
+    │   ├── ied_server_tester.py  # A test script for structured testing on the virtual IED main program.
+    │   ├── ied_server_tester_mini.py  # A test script for running a mini size IED server using only the libIEC61850 server stack
+    │   ├── sunspec_tester.py  # A tester script for elementary sunspec functions.
+    │   └── vied_function_tester.py  # A deprecated testing script for some core functions, no longer in deployment.
     └── module_tests
         ├── cprofile_tester.py  # A tester script to perform a profiling of the vIED to detect performance bottlenecks.
         ├── minimal_example.py  # A minimal example of the IEC 61850 server for test purpose.
@@ -249,6 +250,7 @@ Here some known issues are listed, if you run into problems during code executio
 
 - A compliance list regarding various combination of python version, OS and libiec61850 version can be found [here](https://gitlab.com/thu_smartgrids/pyiec61850).
 - For the current development on Windows OS, `libiec61850-1.6.0 + Python 3.12` is applied.
+- Aside from the parameters in `settings/config.yaml`, there are many other config parametes (e.g. as attributes of the classes in `simulation/runtime_manager`) scattered in the project. A unified parametrisation process using `pydantic` is planned but not yet implemented.
 - In the open source `libIEC61850`, some CDC classes are not yet supported or not completely support (e.g. APC 
   type has mxVal, but not ctlVal). For model consistency, those DO with unsupported CDC types will be dumped during the IED server initialisation, accordingly a reduced data model will be exported afterwards.  
 - Dealing with timestamps is complicated, that is normal. They are different timestamps formats involved in this project, please pay special attention to them.

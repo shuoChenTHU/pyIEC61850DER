@@ -31,9 +31,9 @@ IED:
 
 PV1:
     # always  check the PV parameter before starting the CLS software
-    ip: '192.168.170.99'
-    slave_id: 126
-    tcp_port: 502
+    ip: '192.168.170.88'
+    slave_id: 71
+    tcp_port: 1502
     
 STO1:
     # under construction
@@ -52,12 +52,12 @@ Interface:
     # levea a field empty if the associated file should be generated automatically during service intialisation
     path_data_model_config: './model/config_IEC61850_model.xlsx' 
     path_sunspec_mapping: './interface/interface_SunSpec.xlsx'
-    path_config_yaml: './tester/func_tests/configTester.yaml'  # the path of this file is also included in case the service requires a restart
+    path_config_yaml: './tester/func_tests/config_tester.yaml'
     
     # the other file pathes and configs could be adjusted according to the application
     path_scl: './model/IEC61850_dataModel/IEC61850_DER_v1_miniPV.cid'
 #    path_scl: './model/IEC61850_dataModel/IEC61850_DER_v1_mini.cid'
-    path_lookup: './settings/IEC61850_DA_lookup_miniPV.csv'
+    path_lookup: './tester/func_tests/IEC61850_DA_lookup_sunspec_tester.csv'
 #    path_lookup: './settings/IEC61850_DA_lookup_mini_mega_unit_test.csv'
     is_keep_none: True  # XXX: what was the use of this parameter? find it out....
     is_force_overwrite: False  # determine if existing CSV lookup table shall be overwritten during the service initialisation
